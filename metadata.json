@@ -1,0 +1,5 @@
+{
+  "name": "매일발주 - 스마트 발주 관리",
+  "description": "AI 기반 발주 관리 시스템. 복잡한 발주 텍스트를 자동으로 정리하여 외주처별로 분류해줍니다.",
+  "requestFramePermissions": []
+}
