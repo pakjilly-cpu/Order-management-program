@@ -117,7 +117,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const url = `${window.location.origin}`;
     const today = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
-    const message = `[매일발주] ${today} 발주서가 도착했습니다.\n\n앱 접속: ${url}\n접속 코드: ${code}`;
+    const message = `[COSMAX] ${today} 발주서가 도착했습니다.\n\n앱 접속: ${url}\n접속 코드: ${code}`;
 
     navigator.clipboard.writeText(message).then(() => {
       showNotification(`${vendorName} 접속 코드(${code})가 포함된 메시지가 복사되었습니다!`);
@@ -146,7 +146,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="max-w-3xl mx-auto w-full pb-20">
       <div className="flex items-center justify-between mb-8 pt-6 px-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">매일발주 관리자</h1>
+          <h1 className="text-2xl font-bold text-slate-900">COSMAX 관리자</h1>
           <p className="text-slate-500 text-sm">안녕하세요, {user.id}님</p>
         </div>
         <div className="flex gap-2">

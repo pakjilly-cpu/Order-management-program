@@ -39,10 +39,40 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 border border-slate-100">
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-200">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          {/* Custom Logo: Vertical Stack of 3 Interlinked Red Coins/Apples based on user image */}
+          <div className="flex justify-center mb-6">
+             <div className="w-24 h-auto relative">
+                <svg viewBox="0 0 100 140" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-sm w-full h-full">
+                  {/* Top Coin */}
+                  <g>
+                    {/* Stem */}
+                    <path d="M50 4 L53 9 H47 Z" fill="#E60012" />
+                    <path d="M50 9 V12" stroke="#E60012" strokeWidth="3" />
+                    {/* Ring */}
+                    <circle cx="50" cy="30" r="20" stroke="#E60012" strokeWidth="6" />
+                  </g>
+                  
+                  {/* Middle Coin (Stacked below) */}
+                  <g>
+                    {/* Stem */}
+                    <path d="M50 42 L53 47 H47 Z" fill="#E60012" />
+                    <path d="M50 47 V50" stroke="#E60012" strokeWidth="3" />
+                    {/* Ring */}
+                    <circle cx="50" cy="68" r="20" stroke="#E60012" strokeWidth="6" />
+                  </g>
+
+                  {/* Bottom Coin (Stacked below) */}
+                  <g>
+                    {/* Stem */}
+                    <path d="M50 80 L53 85 H47 Z" fill="#E60012" />
+                    <path d="M50 85 V88" stroke="#E60012" strokeWidth="3" />
+                    {/* Ring */}
+                    <circle cx="50" cy="106" r="20" stroke="#E60012" strokeWidth="6" />
+                  </g>
+                </svg>
+             </div>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">매일발주</h1>
+          <h1 className="text-2xl font-bold text-slate-900">COSMAX</h1>
           <p className="text-slate-500 mt-2 text-sm">스마트한 발주 관리 시스템</p>
         </div>
 
@@ -62,7 +92,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   setError(null);
               }}
               placeholder="사번(9자리) 또는 업체코드(6자리)"
-              className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-lg tracking-widest text-center font-bold text-slate-800 placeholder:text-slate-400 placeholder:font-normal placeholder:tracking-normal placeholder:text-base"
+              className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all text-lg tracking-widest text-center font-bold text-slate-800 placeholder:text-slate-400 placeholder:font-normal placeholder:tracking-normal placeholder:text-base"
               maxLength={9}
               inputMode="numeric"
             />
@@ -77,7 +107,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+              className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 focus:ring-2 cursor-pointer"
             />
             <label htmlFor="remember-me" className="ml-2 text-sm font-medium text-slate-600 cursor-pointer select-none">
               자동 로그인
@@ -87,7 +117,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <div className="space-y-3">
             <Button 
                 type="submit" 
-                className="w-full py-3.5 text-base" 
+                className="w-full py-3.5 text-base !bg-[#E31B23] !hover:bg-[#C41220] !text-white !shadow-red-200" 
                 isLoading={isLoading}
                 disabled={!code || (code.length !== 6 && code.length !== 9)}
             >
