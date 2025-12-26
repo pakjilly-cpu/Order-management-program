@@ -1,6 +1,7 @@
 export interface OrderItem {
   id: string;
   productName: string;
+  productCode?: string; // 제품코드 (F열)
   quantity: string;
   vendorName: string;
   deliveryDate?: string; // 납기요청일

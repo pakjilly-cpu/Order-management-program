@@ -4,6 +4,7 @@ import { parseOrdersWithGemini } from '../services/geminiService';
 import { Button } from './Button';
 import { VendorCard } from './VendorCard';
 import { v4 as uuidv4 } from 'uuid';
+import * as XLSX from 'xlsx';
 
 interface AdminDashboardProps {
   user: User;
@@ -40,7 +41,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   const [rawInput, setRawInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'input' | 'list'>('input');
+  const [activeTab, setActiveTab] = useState<'input' | 'list' | 'report'>('input');
   const [notification, setNotification] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -103,12 +104,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      processData(base64, true);
-    };
-    reader.readAsDataURL(file);
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') ||
+                    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                    file.type === 'application/vnd.ms-excel';
+
+    if (isExcel) {
+      // 엑셀 파일 처리
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+
+        // 모든 시트의 데이터를 텍스트로 변환
+        let textContent = '';
+        workbook.SheetNames.forEach(sheetName => {
+          const sheet = workbook.Sheets[sheetName];
+          const csvData = XLSX.utils.sheet_to_csv(sheet);
+          textContent += `[시트: ${sheetName}]\n${csvData}\n\n`;
+        });
+
+        processData(textContent, false);
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      // 이미지 파일 처리
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        processData(base64, true);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleShare = (vendorName: string) => {
@@ -180,6 +206,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           외주처 현황 ({vendorGroups.length})
           {activeTab === 'list' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
         </button>
+        <button
+          onClick={() => setActiveTab('report')}
+          className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${
+            activeTab === 'report' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          발주 리포트
+          {activeTab === 'report' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
+        </button>
       </div>
 
       {notification && (
@@ -195,17 +230,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="mb-4 inline-flex items-center justify-center w-12 h-12 bg-green-50 rounded-full text-green-600">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15l3-3 3 3"/></svg>
               </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-2">엑셀 파일 캡처 업로드</h3>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">파일 업로드</h3>
               <p className="text-sm text-slate-500 mb-6">
-                발주서 엑셀 파일을 캡처해서 올려주세요.<br/>
+                발주서 파일을 올려주세요.<br/>
                 AI가 외주처별로 분류하고 접속 코드를 생성합니다.
               </p>
               
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handleFileUpload} 
-                className="hidden" 
+              <input
+                type="file"
+                accept="image/*,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                onChange={handleFileUpload}
+                className="hidden"
                 ref={fileInputRef}
                 id="file-upload"
               />
@@ -214,7 +249,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold cursor-pointer transition-all active:scale-95
                   ${isProcessing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-green-600/20'}`}
               >
-                {isProcessing ? '분석 중입니다...' : '이미지 선택하기'}
+                {isProcessing ? '분석 중입니다...' : '파일 선택하기'}
               </label>
             </div>
 
@@ -241,7 +276,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'list' ? (
           <div className="space-y-4">
             {vendorGroups.length === 0 ? (
               <div className="text-center py-12">
@@ -252,20 +287,103 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <p className="text-slate-500 mt-1 text-sm">발주 파일을 업로드해주세요.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-3">
                 {vendorGroups.map((group) => (
-                  <div key={group.vendorName} className="relative">
-                      <VendorCard 
-                        group={group} 
-                        onOpenVendorView={() => onNavigateToVendor(group.code)}
-                        onShare={handleShare}
-                      />
-                  </div>
+                  <VendorCard
+                    key={group.vendorName}
+                    group={group}
+                    onOpenVendorView={() => onNavigateToVendor(group.code)}
+                    onShare={handleShare}
+                  />
                 ))}
               </div>
             )}
           </div>
-        )}
+        ) : activeTab === 'report' ? (
+          <div className="space-y-4">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+                {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })} 발주 리포트
+              </h3>
+              <p className="text-sm text-slate-500 mb-4">제품코드 "9"로 시작하는 품목만 집계됩니다.</p>
+
+              {(() => {
+                // "9"로 시작하는 제품코드만 필터링
+                const filteredOrders = orders.filter(o => o.productCode?.startsWith('9'));
+
+                // 수량 파싱 함수 (콤마, 문자 제거)
+                const parseQuantity = (qty: string): number => {
+                  if (!qty) return 0;
+                  // 숫자만 추출 (콤마, 공백, 문자 제거)
+                  const numStr = qty.replace(/[^\d]/g, '');
+                  return parseInt(numStr) || 0;
+                };
+
+                // 외주처별 수량 합계
+                const reportData = filteredOrders.reduce((acc, order) => {
+                  const vendor = order.vendorName;
+                  const qty = parseQuantity(order.quantity);
+                  acc[vendor] = (acc[vendor] || 0) + qty;
+                  return acc;
+                }, {} as Record<string, number>);
+
+                const vendors = Object.keys(reportData);
+                const totalQty = Object.values(reportData).reduce((a, b) => a + b, 0);
+
+                if (vendors.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-slate-400">
+                      <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                      <p>집계할 데이터가 없습니다.</p>
+                      <p className="text-xs mt-1">제품코드 "9"로 시작하는 발주가 없습니다.</p>
+                    </div>
+                  );
+                }
+
+                const maxQty = Math.max(...Object.values(reportData));
+                const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+
+                return (
+                  <div className="space-y-6">
+                    {/* 막대 그래프 */}
+                    <div className="space-y-3">
+                      {vendors.map((vendor, index) => {
+                        const qty = reportData[vendor];
+                        const percentage = (qty / maxQty) * 100;
+                        const color = colors[index % colors.length];
+
+                        return (
+                          <div key={vendor} className="flex items-center gap-3">
+                            <div className="w-20 text-sm font-medium text-slate-700 truncate flex-shrink-0">
+                              {vendor}
+                            </div>
+                            <div className="flex-1 h-8 bg-slate-100 rounded-lg overflow-hidden relative">
+                              <div
+                                className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-2"
+                                style={{ width: `${percentage}%`, backgroundColor: color }}
+                              >
+                                <span className="text-white text-sm font-bold drop-shadow">
+                                  {qty.toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* 합계 */}
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                      <span className="font-bold text-slate-800">총 발주 수량</span>
+                      <span className="text-2xl font-bold text-blue-600">{totalQty.toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

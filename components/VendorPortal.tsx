@@ -23,7 +23,7 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({ vendorName, orders, 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-4 shadow-sm transition-all">
-        <div className="max-w-md mx-auto">
+        <div className="max-w-2xl mx-auto">
           {/* Header Controls */}
           <div className="flex justify-between items-center mb-4">
              {!isVendorMode ? (
@@ -80,8 +80,8 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({ vendorName, orders, 
         </div>
       </div>
 
-      <div className="max-w-md mx-auto px-4 py-6 pb-32">
-        <div className="space-y-4">
+      <div className="max-w-2xl mx-auto px-4 py-6 pb-32">
+        <div className="space-y-2">
           {vendorItems.length === 0 ? (
              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                 <svg className="w-12 h-12 mb-3 opacity-20" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-8-2h2v-4h4v-2h-4V7h-2v4H7v2h4z"/></svg>
@@ -89,57 +89,62 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({ vendorName, orders, 
              </div>
           ) : (
             vendorItems.map((item) => (
-                <label 
+                <label
                   key={item.id}
-                  className={`group relative block p-5 rounded-2xl border transition-all duration-200 cursor-pointer select-none
-                    ${item.isCompleted 
-                      ? 'bg-slate-50 border-slate-100' 
+                  className={`group relative flex items-start h-auto px-4 py-3 rounded-xl border transition-all duration-200 cursor-pointer select-none
+                    ${item.isCompleted
+                      ? 'bg-slate-50 border-slate-100'
                       : 'bg-white border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md'
                     }`}
                 >
-                  <input 
-                    type="checkbox" 
-                    checked={item.isCompleted} 
+                  <input
+                    type="checkbox"
+                    checked={item.isCompleted}
                     onChange={() => onToggleItem(item.id)}
                     className="peer sr-only"
                   />
-                  
-                  <div className="flex items-start gap-4">
-                    {/* Large Checkbox for Mobile */}
-                    <div className={`mt-1 h-7 w-7 rounded-full border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0
-                      ${item.isCompleted 
-                        ? 'bg-blue-500 border-blue-500 text-white scale-110' 
+
+                  <div className="flex items-center gap-3 w-full min-w-0">
+                    {/* Checkbox */}
+                    <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0
+                      ${item.isCompleted
+                        ? 'bg-blue-500 border-blue-500 text-white'
                         : 'border-slate-300 bg-white text-transparent group-active:scale-90'
                       }`}
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
                     </div>
 
-                    <div className="flex-1 min-w-0 pt-0.5">
-                       <h3 className={`text-lg font-bold leading-tight break-keep ${item.isCompleted ? 'text-slate-400 line-through decoration-slate-300' : 'text-slate-800'}`}>
-                         {item.productName}
-                       </h3>
-                       
-                       <div className="flex flex-wrap items-center gap-2 mt-3">
-                         <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-bold shadow-sm ${item.isCompleted ? 'bg-slate-100 text-slate-400' : 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'}`}>
-                           {item.quantity}
-                         </span>
-                         
-                         {item.deliveryDate && (
-                            <span className="inline-flex items-center gap-1 text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg font-medium border border-slate-200">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                                {item.deliveryDate}
-                            </span>
-                         )}
-                       </div>
-
-                       {item.notes && (
-                           <div className="mt-3 text-sm text-orange-800 bg-orange-50/80 p-3 rounded-xl border border-orange-100/50 flex items-start gap-2">
-                             <svg className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                             <span className="leading-tight">{item.notes}</span>
-                           </div>
-                       )}
+                    {/* Product Name & Code */}
+                    <div className="min-w-0 flex-1">
+                      <h3 className={`font-bold text-sm break-keep ${item.isCompleted ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                        {item.productName}
+                      </h3>
+                      {item.productCode && (
+                        <span className="text-xs text-slate-400">{item.productCode}</span>
+                      )}
                     </div>
+
+                    {/* Quantity Badge */}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold flex-shrink-0
+                      ${item.isCompleted ? 'bg-slate-100 text-slate-400' : 'bg-blue-50 text-blue-700'}`}
+                    >
+                      {item.quantity}
+                    </span>
+
+                    {/* Delivery Date */}
+                    {item.deliveryDate && (
+                      <span className="text-xs text-slate-500 flex-shrink-0">
+                        {item.deliveryDate}
+                      </span>
+                    )}
+
+                    {/* Notes Indicator */}
+                    {item.notes && (
+                      <div className="flex-shrink-0 text-orange-500 cursor-help" title={item.notes}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                      </div>
+                    )}
                   </div>
                 </label>
             ))
