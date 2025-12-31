@@ -5,10 +5,9 @@ import { Button } from './Button';
 interface VendorCardProps {
   group: VendorGroup;
   onOpenVendorView: () => void;
-  onShare: (vendorName: string) => void;
 }
 
-export const VendorCard: React.FC<VendorCardProps> = ({ group, onOpenVendorView, onShare }) => {
+export const VendorCard: React.FC<VendorCardProps> = ({ group, onOpenVendorView }) => {
   const completedCount = group.items.filter(i => i.isCompleted).length;
   const totalCount = group.items.length;
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
@@ -41,22 +40,14 @@ export const VendorCard: React.FC<VendorCardProps> = ({ group, onOpenVendorView,
           </div>
         </div>
 
-        {/* 버튼들 */}
-        <div className="flex gap-2 flex-shrink-0">
+        {/* 버튼 */}
+        <div className="flex-shrink-0">
           <Button
             variant="outline"
             className="text-sm py-2 px-3"
             onClick={onOpenVendorView}
           >
-            미리보기
-          </Button>
-          <Button
-            variant="primary"
-            className="bg-yellow-400 text-yellow-900 hover:bg-yellow-500 hover:text-white border-none px-3"
-            onClick={() => onShare(group.vendorName)}
-            title="공유하기"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 5.92 2 10.75c0 2.8 1.5 5.25 3.85 6.8-.1.75-.85 2.75-.95 2.95-.1.2.1.4.3.3.4-.15 2.85-1.9 3.35-2.25.5.1 1 .15 1.45.15 5.52 0 10-3.92 10-8.75S17.52 2 12 2z"/></svg>
+            발주품목
           </Button>
         </div>
       </div>

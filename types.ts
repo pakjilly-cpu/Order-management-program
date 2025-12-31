@@ -5,6 +5,7 @@ export interface OrderItem {
   quantity: string;
   vendorName: string;
   deliveryDate?: string; // 납기요청일
+  orderDate?: string; // 발주일 (파일 업로드 날짜)
   isCompleted: boolean;
   notes?: string;
 }

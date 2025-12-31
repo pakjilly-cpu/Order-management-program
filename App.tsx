@@ -6,11 +6,20 @@ import { OrderItem, AppView, User } from './types';
 
 const MOCK_INITIAL_DATA: OrderItem[] = [];
 
-// Fallback codes if local storage is empty, ensuring consistency for known vendors
-const INITIAL_VENDOR_CODES: Record<string, string> = {
+// 외주처별 고정 로그인 코드
+const VALID_VENDOR_CODES: Record<string, string> = {
   '위드맘': '200131',
-  '리니어': '200101'
+  '그램': '200216',
+  '리니어': '200101',
+  '디딤테크': '308803',
+  '씨엘로': '200008',
+  '신세계': '200004',
+  '엠큐브': '111111',
+  '메이코스': '222222'
 };
+
+// Fallback codes if local storage is empty
+const INITIAL_VENDOR_CODES: Record<string, string> = { ...VALID_VENDOR_CODES };
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.LOGIN);
@@ -69,10 +78,10 @@ const App: React.FC = () => {
     if (code.length === 9) {
       user = { type: 'ADMIN', id: code, name: '관리자' };
     }
-    // 2. Check Vendor (6 digits)
+    // 2. Check Vendor (6 digits) - 고정된 코드만 허용
     else if (code.length === 6) {
-      // Find vendor by code
-      const vendorName = Object.keys(vendorCodes).find(key => vendorCodes[key] === code);
+      // Find vendor by code from VALID_VENDOR_CODES only
+      const vendorName = Object.keys(VALID_VENDOR_CODES).find(key => VALID_VENDOR_CODES[key] === code);
       if (vendorName) {
         user = { type: 'VENDOR', id: vendorName, name: vendorName };
       }

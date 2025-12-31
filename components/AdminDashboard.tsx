@@ -19,7 +19,24 @@ interface AdminDashboardProps {
 // Predefined codes for specific vendors
 const PREDEFINED_CODES: Record<string, string> = {
   '위드맘': '200131',
-  '리니어': '200101'
+  '그램': '200216',
+  '리니어': '200101',
+  '디딤테크': '308803',
+  '씨엘로': '200008',
+  '신세계': '200004',
+  '엠큐브': '111111',
+  '메이코스': '222222'
+};
+
+// 외주처별 월간 목표 수량
+const VENDOR_TARGETS: Record<string, number> = {
+  '그램': 480000,
+  '디딤테크': 1600000,
+  '리니어': 1600000,
+  '메이코스': 1000000,
+  '씨엘로': 1600000,
+  '엠큐브': 1000000,
+  '위드맘': 1600000
 };
 
 const generateVendorCode = (existingCodes: Record<string, string>): string => {
@@ -55,9 +72,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const parsedItems = await parseOrdersWithGemini(data, isImage);
       
+      const today = new Date().toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' });
       const newOrders: OrderItem[] = parsedItems.map(item => ({
         ...item,
         id: uuidv4(),
+        orderDate: today,
         isCompleted: false
       }));
 
@@ -137,19 +156,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const handleShare = (vendorName: string) => {
-    const code = vendorCodes[vendorName];
-    if (!code) return;
-
-    const url = `${window.location.origin}`;
-    const today = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
-    const message = `[COSMAX] ${today} 발주서가 도착했습니다.\n\n앱 접속: ${url}\n접속 코드: ${code}`;
-
-    navigator.clipboard.writeText(message).then(() => {
-      showNotification(`${vendorName} 접속 코드(${code})가 포함된 메시지가 복사되었습니다!`);
-    });
-  };
-
   const vendorGroups: VendorGroup[] = Object.values(orders.reduce((acc, order) => {
     if (!acc[order.vendorName]) {
       acc[order.vendorName] = {
@@ -203,7 +209,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             activeTab === 'list' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          외주처 현황 ({vendorGroups.length})
+          발주목록 ({vendorGroups.length})
           {activeTab === 'list' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
         </button>
         <button
@@ -293,7 +299,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     key={group.vendorName}
                     group={group}
                     onOpenVendorView={() => onNavigateToVendor(group.code)}
-                    onShare={handleShare}
                   />
                 ))}
               </div>
@@ -329,7 +334,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 }, {} as Record<string, number>);
 
                 const vendors = Object.keys(reportData);
-                const totalQty = Object.values(reportData).reduce((a, b) => a + b, 0);
+                const reportValues = Object.values(reportData) as number[];
+                const totalQty: number = reportValues.reduce((a, b) => a + b, 0);
 
                 if (vendors.length === 0) {
                   return (
@@ -341,31 +347,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   );
                 }
 
-                const maxQty = Math.max(...Object.values(reportData));
                 const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+
+                // 달성률 기준 내림차순 정렬
+                const sortedVendors = vendors.sort((a, b) => {
+                  const rateA = VENDOR_TARGETS[a] ? (reportData[a] / VENDOR_TARGETS[a]) * 100 : 0;
+                  const rateB = VENDOR_TARGETS[b] ? (reportData[b] / VENDOR_TARGETS[b]) * 100 : 0;
+                  return rateB - rateA;
+                });
+
+                // 전체 목표 수량 합계
+                const targetValues = Object.values(VENDOR_TARGETS) as number[];
+                const totalTarget: number = targetValues.reduce((a, b) => a + b, 0);
+                const totalAchievementRate = totalTarget > 0 ? (totalQty / totalTarget) * 100 : 0;
 
                 return (
                   <div className="space-y-6">
                     {/* 막대 그래프 */}
-                    <div className="space-y-3">
-                      {vendors.map((vendor, index) => {
+                    <div className="space-y-4">
+                      {sortedVendors.map((vendor, index) => {
                         const qty = reportData[vendor];
-                        const percentage = (qty / maxQty) * 100;
+                        const target = VENDOR_TARGETS[vendor] || 0;
+                        const achievementRate = target > 0 ? (qty / target) * 100 : 0;
+                        const barWidth = Math.min(achievementRate, 100); // 100% 초과시에도 바는 100%까지만
                         const color = colors[index % colors.length];
 
                         return (
-                          <div key={vendor} className="flex items-center gap-3">
-                            <div className="w-20 text-sm font-medium text-slate-700 truncate flex-shrink-0">
-                              {vendor}
+                          <div key={vendor} className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm font-medium text-slate-700">
+                                {vendor}
+                              </div>
+                              <div className="text-sm text-slate-500">
+                                <span className="font-bold" style={{ color }}>{achievementRate.toFixed(1)}%</span>
+                                <span className="text-slate-400 ml-1">달성</span>
+                              </div>
                             </div>
-                            <div className="flex-1 h-8 bg-slate-100 rounded-lg overflow-hidden relative">
-                              <div
-                                className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-2"
-                                style={{ width: `${percentage}%`, backgroundColor: color }}
-                              >
-                                <span className="text-white text-sm font-bold drop-shadow">
-                                  {qty.toLocaleString()}
-                                </span>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-8 bg-slate-100 rounded-lg overflow-hidden relative">
+                                <div
+                                  className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-2"
+                                  style={{ width: `${barWidth}%`, backgroundColor: color }}
+                                >
+                                  {barWidth >= 20 && (
+                                    <span className="text-white text-sm font-bold drop-shadow">
+                                      {qty.toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                                {barWidth < 20 && (
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600 text-sm font-bold">
+                                    {qty.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="w-24 text-right text-xs text-slate-400 flex-shrink-0">
+                                목표: {target > 0 ? target.toLocaleString() : '-'}
                               </div>
                             </div>
                           </div>
@@ -374,9 +411,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     {/* 합계 */}
-                    <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-                      <span className="font-bold text-slate-800">총 발주 수량</span>
-                      <span className="text-2xl font-bold text-blue-600">{totalQty.toLocaleString()}</span>
+                    <div className="pt-4 border-t-2 border-slate-300 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="text-base font-bold text-slate-800">
+                          총 발주 수량
+                        </div>
+                        <div className="text-sm text-slate-500">
+                          <span className="font-bold text-blue-600">{totalAchievementRate.toFixed(1)}%</span>
+                          <span className="text-slate-400 ml-1">달성</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-10 bg-slate-200 rounded-lg overflow-hidden relative">
+                          <div
+                            className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
+                            style={{ width: `${Math.min(totalAchievementRate, 100)}%`, backgroundColor: '#1E40AF' }}
+                          >
+                            {totalAchievementRate >= 15 && (
+                              <span className="text-white text-lg font-bold drop-shadow">
+                                {totalQty.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          {totalAchievementRate < 15 && (
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700 text-lg font-bold">
+                              {totalQty.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-24 text-right text-xs text-slate-500 flex-shrink-0 font-medium">
+                          목표: {totalTarget.toLocaleString()}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
