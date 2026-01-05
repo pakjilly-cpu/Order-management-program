@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { OrderItem, VendorGroup, User } from '../types';
 import { parseOrdersWithGemini } from '../services/geminiService';
 import { Button } from './Button';
@@ -60,7 +60,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState<'input' | 'list' | 'report'>('input');
   const [notification, setNotification] = useState<string | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<{name: string, date: string, count: number}[]>(() => {
+    const saved = localStorage.getItem('uploaded_files');
+    return saved ? JSON.parse(saved) : [];
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 업로드 파일 목록 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem('uploaded_files', JSON.stringify(uploadedFiles));
+  }, [uploadedFiles]);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -119,41 +128,155 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     processData(rawInput, false);
   };
 
+  // 유효한 외주처 목록
+  const VALID_VENDORS = ['리니어', '그램', '위드맘', '씨엘로', '신세계', '메이코스', '엠큐브'];
+
+  const parseExcelSheet = (sheet: XLSX.WorkSheet, orderDate: string, fileName: string) => {
+    setIsProcessing(true);
+    try {
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+      // 헤더 행 찾기 (외주처, 품명, sap코드, 수량 포함된 행)
+      let headerRowIndex = -1;
+      let colIndexes = { vendor: -1, product: -1, sapCode: -1, quantity: -1 };
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        if (!row) continue;
+
+        row.forEach((cell, j) => {
+          const cellStr = String(cell || '').trim().toLowerCase();
+          if (cellStr.includes('외주처')) colIndexes.vendor = j;
+          if (cellStr.includes('품명')) colIndexes.product = j;
+          if (cellStr.includes('sap') || cellStr === '코드' || cellStr.includes('제품코드')) colIndexes.sapCode = j;
+          if (cellStr.includes('수량')) colIndexes.quantity = j;
+        });
+
+        if (colIndexes.vendor !== -1 && colIndexes.product !== -1) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) {
+        alert('헤더 행을 찾을 수 없습니다. (외주처, 품명 열이 필요합니다)');
+        return;
+      }
+
+      // 데이터 행 파싱 및 필터링
+      const newOrders: OrderItem[] = [];
+
+      for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        if (!row) continue;
+
+        const vendorName = String(row[colIndexes.vendor] || '').trim();
+        if (!VALID_VENDORS.includes(vendorName)) continue;
+
+        const productName = String(row[colIndexes.product] || '').trim();
+        if (!productName) continue; // 품명이 없으면 스킵
+
+        // 제품코드(F열)가 1, 9, 3으로 시작하는 것만 필터링
+        const productCode = colIndexes.sapCode !== -1 ? String(row[colIndexes.sapCode] || '').trim() : '';
+        if (!productCode.startsWith('1') && !productCode.startsWith('9') && !productCode.startsWith('3')) {
+          continue;
+        }
+
+        newOrders.push({
+          id: uuidv4(),
+          vendorName,
+          productName,
+          productCode,
+          quantity: String(row[colIndexes.quantity] || ''),
+          orderDate: orderDate,
+          isCompleted: false
+        });
+      }
+
+      if (newOrders.length === 0) {
+        alert('유효한 발주 데이터를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 벤더 코드 업데이트
+      const newCodes = { ...vendorCodes };
+      let codesUpdated = false;
+
+      newOrders.forEach(order => {
+        if (!newCodes[order.vendorName]) {
+          if (PREDEFINED_CODES[order.vendorName]) {
+            newCodes[order.vendorName] = PREDEFINED_CODES[order.vendorName];
+          } else {
+            newCodes[order.vendorName] = generateVendorCode(newCodes);
+          }
+          codesUpdated = true;
+        }
+      });
+
+      if (codesUpdated) {
+        setVendorCodes(newCodes);
+      }
+
+      setOrders(prev => [...newOrders, ...prev]);
+      setUploadedFiles(prev => [...prev, { name: fileName, date: orderDate, count: newOrders.length }]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setActiveTab('list');
+      showNotification(`${newOrders.length}건의 발주가 등록되었습니다.`);
+    } catch (error) {
+      console.error('엑셀 파싱 오류:', error);
+      alert('엑셀 파일 처리 중 오류가 발생했습니다.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') ||
-                    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-                    file.type === 'application/vnd.ms-excel';
-
-    if (isExcel) {
-      // 엑셀 파일 처리
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-
-        // 모든 시트의 데이터를 텍스트로 변환
-        let textContent = '';
-        workbook.SheetNames.forEach(sheetName => {
-          const sheet = workbook.Sheets[sheetName];
-          const csvData = XLSX.utils.sheet_to_csv(sheet);
-          textContent += `[시트: ${sheetName}]\n${csvData}\n\n`;
-        });
-
-        processData(textContent, false);
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
-      // 이미지 파일 처리
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        processData(base64, true);
-      };
-      reader.readAsDataURL(file);
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+    if (!isExcel) {
+      alert('엑셀 파일(.xlsx, .xls)만 업로드 가능합니다.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
     }
+
+    // 파일명에서 날짜 추출 (예: "외주출고 제출자료 25.12.31.xlsx" -> "12.31")
+    let orderDate: string = '';
+    const yymmddMatch = file.name.match(/\d{2}\.(\d{1,2})\.(\d{1,2})/);
+    if (yymmddMatch) {
+      orderDate = `${yymmddMatch[1]}.${yymmddMatch[2]}`;
+    } else {
+      const mmddMatch = file.name.match(/(\d{1,2})\.(\d{1,2})(?=\.xlsx?$)/i);
+      if (mmddMatch) {
+        orderDate = `${mmddMatch[1]}.${mmddMatch[2]}`;
+      }
+    }
+    // 날짜를 못 찾으면 오늘 날짜 사용
+    if (!orderDate) {
+      const today = new Date();
+      orderDate = `${today.getMonth() + 1}.${today.getDate()}`;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const data = new Uint8Array(event.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      // 두 번째 시트 사용 (인덱스 1), 시트가 1개면 첫 번째 시트
+      const sheetIndex = workbook.SheetNames.length > 1 ? 1 : 0;
+      const sheetName = workbook.SheetNames[sheetIndex];
+      const sheet = workbook.Sheets[sheetName];
+
+      if (!sheet) {
+        alert(`시트를 찾을 수 없습니다.\n사용 가능한 시트: ${workbook.SheetNames.join(', ')}`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      parseExcelSheet(sheet, orderDate, file.name);
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   const vendorGroups: VendorGroup[] = Object.values(orders.reduce((acc, order) => {
@@ -238,25 +361,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <h3 className="text-lg font-bold text-slate-800 mb-2">파일 업로드</h3>
               <p className="text-sm text-slate-500 mb-6">
-                발주서 파일을 올려주세요.<br/>
-                AI가 외주처별로 분류하고 접속 코드를 생성합니다.
+                발주서 엑셀 파일을 올려주세요.<br/>
+                오늘 날짜 시트에서 외주처별로 자동 분류됩니다.
               </p>
               
               <input
                 type="file"
-                accept="image/*,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                accept=".xlsx,.xls"
                 onChange={handleFileUpload}
                 className="hidden"
                 ref={fileInputRef}
                 id="file-upload"
               />
-              <label 
+              <label
                 htmlFor="file-upload"
                 className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold cursor-pointer transition-all active:scale-95
                   ${isProcessing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-green-600/20'}`}
               >
                 {isProcessing ? '분석 중입니다...' : '파일 선택하기'}
               </label>
+
+              {/* 업로드된 파일 목록 */}
+              {uploadedFiles.length > 0 && (
+                <div className="mt-6 text-left">
+                  <h4 className="text-sm font-semibold text-slate-600 mb-2">업로드된 파일 목록</h4>
+                  <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg bg-slate-50">
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between px-3 py-2 text-sm border-b border-slate-100 last:border-b-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                          </svg>
+                          <span className="text-slate-700 truncate">{file.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 text-xs">
+                          <span className="text-blue-600 font-medium">{file.date}</span>
+                          <span className="text-slate-400">|</span>
+                          <span className="text-slate-500">{file.count}건</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="relative">

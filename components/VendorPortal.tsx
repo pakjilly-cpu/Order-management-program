@@ -83,9 +83,6 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({ vendorName, orders, 
           <div className="flex justify-between items-end mt-2">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{vendorName}</h1>
-              <p className="text-xs text-slate-500 font-medium mt-1">
-                {new Date().toLocaleDateString('ko-KR')} 납품 요청서
-              </p>
             </div>
             <div className="text-right">
               <div className="flex items-baseline justify-end gap-1">
@@ -198,112 +195,149 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({ vendorName, orders, 
             )}
           </div>
         ) : (
-        <div className="space-y-2">
+        <div>
           {vendorItems.length === 0 ? (
              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                 <svg className="w-12 h-12 mb-3 opacity-20" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-8-2h2v-4h4v-2h-4V7h-2v4H7v2h4z"/></svg>
                 <p>배정된 발주 내역이 없습니다.</p>
              </div>
-          ) : (
-            vendorItems.map((item) =>
-              isVendorMode ? (
-                /* 외주처 모드 - 체크박스 있음 */
-                <label
-                  key={item.id}
-                  className={`group relative flex items-center h-auto px-4 py-3 rounded-xl border transition-all duration-200 cursor-pointer select-none
-                    ${item.isCompleted
-                      ? 'bg-slate-50 border-slate-100'
-                      : 'bg-white border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md'
-                    }`}
+          ) : isVendorMode ? (
+            /* 외주처 모드 - 표 형식 + 체크박스 */
+            <div className="space-y-3">
+              {/* 전체 체크 버튼 */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    const allCompleted = vendorItems.every(item => item.isCompleted);
+                    const itemsToToggle = allCompleted
+                      ? vendorItems.filter(item => item.isCompleted)
+                      : vendorItems.filter(item => !item.isCompleted);
+                    itemsToToggle.forEach(item => onToggleItem(item.id));
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    vendorItems.every(item => item.isCompleted)
+                      ? 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={item.isCompleted}
-                    onChange={() => onToggleItem(item.id)}
-                    className="peer sr-only"
-                  />
-                  <div className="flex items-center gap-3 w-full min-w-0">
-                    {/* 체크박스 */}
-                    <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0
-                      ${item.isCompleted
-                        ? 'bg-blue-500 border-blue-500 text-white'
-                        : 'border-slate-300 bg-white text-transparent group-active:scale-90'
+                  {vendorItems.every(item => item.isCompleted) ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                      전체 해제
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                      전체 체크
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-3 py-3 text-left font-semibold text-slate-600 w-12">확인</th>
+                    <th className="px-3 py-3 text-left font-semibold text-slate-600">발주일</th>
+                    <th className="px-3 py-3 text-left font-semibold text-slate-600">품목</th>
+                    <th className="px-3 py-3 text-left font-semibold text-slate-600">품명</th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-600">수량</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {vendorItems.map((item) => (
+                    <tr
+                      key={item.id}
+                      onClick={() => onToggleItem(item.id)}
+                      className={`cursor-pointer transition-colors ${
+                        item.isCompleted ? 'bg-slate-50' : 'hover:bg-blue-50'
                       }`}
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
-                    </div>
-
-                    {/* 품번 */}
-                    {item.productCode && (
-                      <span className={`text-xs flex-shrink-0 font-mono ${item.isCompleted ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {item.productCode}
-                      </span>
-                    )}
-
-                    {/* 품명 */}
-                    <div className="min-w-0 flex-1">
-                      <h3 className={`font-bold text-sm break-keep ${item.isCompleted ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                      <td className="px-3 py-3">
+                        <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all duration-200
+                          ${item.isCompleted
+                            ? 'bg-blue-500 border-blue-500 text-white'
+                            : 'border-slate-300 bg-white'
+                          }`}
+                        >
+                          {item.isCompleted && (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                          )}
+                        </div>
+                      </td>
+                      <td className={`px-3 py-3 font-medium whitespace-nowrap ${
+                        item.isCompleted ? 'text-slate-400' : 'text-blue-600'
+                      }`}>
+                        {item.orderDate || '-'}
+                      </td>
+                      <td className={`px-3 py-3 font-mono text-xs whitespace-nowrap ${
+                        item.isCompleted ? 'text-slate-400' : 'text-slate-500'
+                      }`}>
+                        {item.productCode || '-'}
+                      </td>
+                      <td className={`px-3 py-3 font-medium ${
+                        item.isCompleted ? 'text-slate-400 line-through' : 'text-slate-800'
+                      }`}>
                         {item.productName}
-                      </h3>
-                    </div>
-
-                    {/* 수량 */}
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold flex-shrink-0
-                      ${item.isCompleted ? 'bg-slate-100 text-slate-400' : 'bg-blue-50 text-blue-700'}`}>
-                      {item.quantity}
-                    </span>
-
-                    {/* 납기일 */}
-                    {item.deliveryDate && (
-                      <span className={`text-xs flex-shrink-0 ${item.isCompleted ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {item.deliveryDate}
-                      </span>
-                    )}
-                  </div>
-                </label>
-              ) : (
-                /* 관리자 미리보기 모드 - 체크박스 없음 */
-                <div
-                  key={item.id}
-                  className="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-sm"
-                >
-                  <div className="flex items-center gap-3 w-full min-w-0">
-                    {/* 발주일 */}
-                    {item.orderDate && (
-                      <span className="text-xs text-blue-600 font-medium flex-shrink-0 bg-blue-50 px-2 py-0.5 rounded">
-                        {item.orderDate}
-                      </span>
-                    )}
-
-                    {/* 품번 */}
-                    {item.productCode && (
-                      <span className="text-xs text-slate-500 flex-shrink-0 font-mono">
-                        {item.productCode}
-                      </span>
-                    )}
-
-                    {/* 품명 */}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-bold text-sm break-keep text-slate-800">
+                      </td>
+                      <td className={`px-3 py-3 text-right font-bold whitespace-nowrap ${
+                        item.isCompleted ? 'text-slate-400' : 'text-blue-700'
+                      }`}>
+                        {(() => {
+                          const numStr = (item.quantity || '').replace(/[^\d]/g, '');
+                          const num = parseInt(numStr) || 0;
+                          return num.toLocaleString();
+                        })()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            </div>
+          ) : (
+            /* 관리자 미리보기 모드 - 표 형식 */
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-600">발주일</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-600">품목</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-600">품명</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-600">수량</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {vendorItems.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 text-blue-600 font-medium whitespace-nowrap">
+                        {item.orderDate || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 font-mono text-xs whitespace-nowrap">
+                        {item.productCode || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-800 font-medium">
                         {item.productName}
-                      </h3>
-                    </div>
-
-                    {/* 수량 */}
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold flex-shrink-0 bg-blue-50 text-blue-700">
-                      {item.quantity}
-                    </span>
-
-                    {/* 납기일 */}
-                    {item.deliveryDate && (
-                      <span className="text-xs text-slate-500 flex-shrink-0">
-                        {item.deliveryDate}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            )
+                      </td>
+                      <td className="px-4 py-3 text-right text-blue-700 font-bold whitespace-nowrap">
+                        {(() => {
+                          const numStr = (item.quantity || '').replace(/[^\d]/g, '');
+                          const num = parseInt(numStr) || 0;
+                          return num.toLocaleString();
+                        })()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
         )}
