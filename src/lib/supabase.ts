@@ -11,7 +11,34 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce'
+    detectSessionInUrl: false  // 수동으로 처리
   }
 });
+
+// URL 해시에서 토큰 파싱 및 세션 설정
+const handleAuthCallback = async () => {
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token')) {
+    const params = new URLSearchParams(hash.substring(1));
+    const access_token = params.get('access_token');
+    const refresh_token = params.get('refresh_token');
+
+    if (access_token && refresh_token) {
+      console.log('Setting session from URL hash');
+      const { error } = await supabase.auth.setSession({
+        access_token,
+        refresh_token
+      });
+
+      if (error) {
+        console.error('Error setting session:', error);
+      } else {
+        // 성공 후 URL 해시 제거
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
+  }
+};
+
+// 페이지 로드 시 실행
+handleAuthCallback();
