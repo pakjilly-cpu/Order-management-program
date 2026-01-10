@@ -1,7 +1,19 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { OrderItem } from "@/types";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+// Lazy initialization - API 호출할 때만 초기화
+let ai: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!ai) {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("Gemini API 키가 설정되지 않았습니다.");
+    }
+    ai = new GoogleGenAI({ apiKey });
+  }
+  return ai;
+};
 
 // 텍스트 처리를 위한 스키마
 const responseSchema = {
@@ -70,7 +82,7 @@ export const parseOrdersWithGemini = async (input: string, isImage: boolean = fa
       ];
     }
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: "gemini-2.0-flash",
       contents: {
         parts: contentParts
