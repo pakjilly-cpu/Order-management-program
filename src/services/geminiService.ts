@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { OrderItem } from "../types";
+import { OrderItem } from "@/types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 // 텍스트 처리를 위한 스키마
 const responseSchema = {

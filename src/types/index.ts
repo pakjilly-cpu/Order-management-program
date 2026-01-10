@@ -27,3 +27,15 @@ export interface User {
   id: string; // Admin ID or Vendor Name
   name?: string;
 }
+
+// ============================================
+// Auth Types (Supabase Auth와 연동)
+// ============================================
+
+import { User as DbUser } from '@/types/database';
+
+export interface AuthState {
+  user: DbUser | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+}

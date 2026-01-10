@@ -1,6 +1,6 @@
 import React from 'react';
-import { VendorGroup } from '../types';
-import { Button } from './Button';
+import { VendorGroup } from '@/types';
+import { Button } from '@/components/Button';
 
 interface VendorCardProps {
   group: VendorGroup;

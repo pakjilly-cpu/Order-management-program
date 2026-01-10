@@ -5,16 +5,16 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
 }
 
-export const Button: React.FC<ButtonProps> = ({ 
-  children, 
-  variant = 'primary', 
-  isLoading, 
-  className = '', 
+export const Button: React.FC<ButtonProps> = ({
+  children,
+  variant = 'primary',
+  isLoading,
+  className = '',
   disabled,
-  ...props 
+  ...props
 }) => {
   const baseStyles = "px-4 py-2.5 rounded-xl font-medium transition-all duration-200 active:scale-95 flex items-center justify-center gap-2";
-  
+
   const variants = {
     primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg disabled:bg-blue-400",
     secondary: "bg-slate-800 text-white hover:bg-slate-900 shadow-md disabled:bg-slate-600",
@@ -23,7 +23,7 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <button 
+    <button
       className={`${baseStyles} ${variants[variant]} ${className}`}
       disabled={disabled || isLoading}
       {...props}
