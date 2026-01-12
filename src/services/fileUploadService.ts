@@ -37,7 +37,6 @@ export const createFileUpload = async (
   try {
     const { data: newUpload, error } = await supabase
       .from('file_uploads')
-      // @ts-expect-error Supabase 타입 호환성 문제
       .insert(uploadData)
       .select()
       .single();

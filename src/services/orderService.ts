@@ -74,7 +74,6 @@ export const createOrders = async (
   try {
     const { data, error } = await supabase
       .from('orders')
-      // @ts-expect-error Supabase 타입 호환성 문제
       .insert(orders)
       .select();
 
@@ -98,7 +97,6 @@ export const updateOrder = async (
   try {
     const { data: updatedOrder, error } = await supabase
       .from('orders')
-      // @ts-expect-error Supabase 타입 호환성 문제
       .update({ ...updateData, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
@@ -136,7 +134,6 @@ export const toggleOrderCompletion = async (
 
     const { data: updatedOrder, error: updateError } = await supabase
       .from('orders')
-      // @ts-expect-error Supabase 타입 호환성 문제
       .update({
         is_completed: newIsCompleted,
         completed_at: completedAt,

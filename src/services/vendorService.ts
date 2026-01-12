@@ -78,7 +78,6 @@ export const createVendor = async (
   try {
     const { data: newVendor, error } = await supabase
       .from('vendors')
-      // @ts-expect-error Supabase 타입 호환성 문제
       .insert(vendorData)
       .select()
       .single();
@@ -103,7 +102,6 @@ export const updateVendor = async (
   try {
     const { data: updatedVendor, error } = await supabase
       .from('vendors')
-      // @ts-expect-error Supabase 타입 호환성 문제
       .update({ ...updateData, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
@@ -176,7 +174,6 @@ export const updateVendorTarget = async (
       const existing = existingTarget as { id: string };
       const { data, error } = await supabase
         .from('vendor_targets')
-        // @ts-expect-error Supabase 타입 호환성 문제
         .update({ target_quantity: quantity })
         .eq('id', existing.id)
         .select()
@@ -188,7 +185,6 @@ export const updateVendorTarget = async (
       // 새로 생성
       const { data, error } = await supabase
         .from('vendor_targets')
-        // @ts-expect-error Supabase 타입 호환성 문제
         .insert({
           vendor_id: vendorId,
           year,

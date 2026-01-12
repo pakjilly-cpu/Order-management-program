@@ -168,11 +168,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // 전체 합계
   const totalQuantity = useMemo(() => {
-    return Object.values(reportData).reduce((a, b) => a + b, 0);
+    return (Object.values(reportData) as number[]).reduce((a, b) => a + b, 0);
   }, [reportData]);
 
   const totalTarget = useMemo(() => {
-    return Object.values(vendorTargetsMap).reduce((a, b) => a + b, 0);
+    return (Object.values(vendorTargetsMap) as number[]).reduce((a, b) => a + b, 0);
   }, [vendorTargetsMap]);
 
   const totalAchievementRate = totalTarget > 0 ? (totalQuantity / totalTarget) * 100 : 0;

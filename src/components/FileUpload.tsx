@@ -454,7 +454,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           <div className="px-6 py-4 border-b border-slate-100">
             <h4 className="text-sm font-semibold text-slate-600 mb-3">외주처별 발주 현황</h4>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(groupedOrders).map(([vendorName, orders]) => (
+              {Object.entries(groupedOrders).map(([vendorName, orders]: [string, ParsedOrder[]]) => (
                 <div
                   key={vendorName}
                   className="px-3 py-2 bg-slate-100 rounded-lg text-sm"

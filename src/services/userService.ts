@@ -58,7 +58,6 @@ export const updateUser = async (
   try {
     const { data: updatedUser, error } = await supabase
       .from('users')
-      // @ts-expect-error Supabase 타입 호환성 문제
       .update({ ...updateData, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
@@ -94,7 +93,6 @@ export const toggleUserActive = async (
 
     const { data: updatedUser, error: updateError } = await supabase
       .from('users')
-      // @ts-expect-error Supabase 타입 호환성 문제
       .update({
         is_active: !current.is_active,
         updated_at: new Date().toISOString()
@@ -123,7 +121,6 @@ export const updateUserRole = async (
   try {
     const { data: updatedUser, error } = await supabase
       .from('users')
-      // @ts-expect-error Supabase 타입 호환성 문제
       .update({
         role,
         updated_at: new Date().toISOString()
