@@ -15,6 +15,7 @@ interface ParsedOrder {
   productName: string;
   productCode: string;
   quantity: number;
+  deliveryDate: string;
 }
 
 interface FileUploadProps {
@@ -73,13 +74,68 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     return today.toISOString().split('T')[0];
   }, []);
 
+  // 납기일 값 처리 (날짜 형식이면 YYYY-MM-DD로 변환, 변환 불가 시 빈 문자열)
+  const formatDeliveryDate = useCallback((value: unknown, referenceYear?: number): string => {
+    if (!value) return '';
+    
+    const year = referenceYear || new Date().getFullYear();
+    
+    // 엑셀 날짜 시리얼 넘버인 경우 (숫자)
+    if (typeof value === 'number') {
+      // 엑셀 날짜 시리얼을 JS Date로 변환
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+      const y = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${y}-${month}-${day}`;
+    }
+    
+    const str = String(value).trim();
+    if (!str) return '';
+    
+    // 이미 YYYY-MM-DD 형식인 경우
+    const isoMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+    }
+    
+    // MM-DD 형식인 경우 (연도 추가)
+    const mmddDashMatch = str.match(/^(\d{1,2})-(\d{1,2})$/);
+    if (mmddDashMatch) {
+      return `${year}-${mmddDashMatch[1].padStart(2, '0')}-${mmddDashMatch[2].padStart(2, '0')}`;
+    }
+    
+    // MM/DD 또는 M/D 형식 (순수 숫자+슬래시만)
+    const slashMatch = str.match(/^(\d{1,2})\/(\d{1,2})$/);
+    if (slashMatch) {
+      return `${year}-${slashMatch[1].padStart(2, '0')}-${slashMatch[2].padStart(2, '0')}`;
+    }
+    
+    // MM.DD 형식
+    const dotMatch = str.match(/^(\d{1,2})\.(\d{1,2})$/);
+    if (dotMatch) {
+      return `${year}-${dotMatch[1].padStart(2, '0')}-${dotMatch[2].padStart(2, '0')}`;
+    }
+    
+    // XX월 XX일 형식 (순수 날짜만)
+    const koreanMatch = str.match(/^(\d{1,2})\s*월\s*(\d{1,2})\s*일$/);
+    if (koreanMatch) {
+      return `${year}-${koreanMatch[1].padStart(2, '0')}-${koreanMatch[2].padStart(2, '0')}`;
+    }
+    
+    // 그 외 (문자 포함, 변환 불가) → 빈 문자열 (DB에 null로 저장됨)
+    return '';
+  }, []);
+
   // 엑셀 시트 파싱
   const parseExcelSheet = useCallback((sheet: XLSX.WorkSheet): ParsedOrder[] => {
-    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+    // raw: false로 설정하여 셀의 포맷된 텍스트를 가져옴 (예: "12/26(오후직납)")
+    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as unknown[][];
 
-    // 헤더 행 찾기 (외주처, 품명, sap코드, 수량 포함된 행)
+    // 헤더 행 찾기 (외주처, 품명, sap코드, 수량, 납기 포함된 행)
     let headerRowIndex = -1;
-    const colIndexes = { vendor: -1, product: -1, sapCode: -1, quantity: -1 };
+    const colIndexes = { vendor: -1, product: -1, sapCode: -1, quantity: -1, deliveryDate: -1 };
 
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
@@ -91,6 +147,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         if (cellStr.includes('품명')) colIndexes.product = j;
         if (cellStr.includes('sap') || cellStr === '코드' || cellStr.includes('제품코드')) colIndexes.sapCode = j;
         if (cellStr.includes('수량')) colIndexes.quantity = j;
+        if (cellStr.includes('납기') || cellStr.includes('요청일') || cellStr.includes('delivery')) colIndexes.deliveryDate = j;
       });
 
       if (colIndexes.vendor !== -1 && colIndexes.product !== -1) {
@@ -126,16 +183,21 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       const quantityStr = String(row[colIndexes.quantity] || '').replace(/[^\d]/g, '');
       const quantity = parseInt(quantityStr) || 0;
 
+      // 납기일 파싱 (날짜 형식이면 YYYY-MM-DD로 변환, 변환 불가 시 빈 문자열)
+      const deliveryDateRaw = colIndexes.deliveryDate !== -1 ? row[colIndexes.deliveryDate] : '';
+      const deliveryDate = formatDeliveryDate(deliveryDateRaw);
+
       orders.push({
         vendorName,
         productName,
         productCode,
         quantity,
+        deliveryDate,
       });
     }
 
     return orders;
-  }, []);
+  }, [formatDeliveryDate]);
 
   // 파일 처리
   const processFile = useCallback(async (file: File) => {
@@ -243,6 +305,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             product_code: order.productCode,
             quantity: order.quantity,
             order_date: orderDate,
+            delivery_date: order.deliveryDate || null,
             uploaded_by: userId || null,
           };
         })
@@ -373,7 +436,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">파싱 결과 미리보기</h3>
+                <h3 className="text-lg font-bold text-slate-800">업로드 미리보기</h3>
                 <p className="text-sm text-slate-500 mt-1">
                   파일: <span className="font-medium text-slate-700">{fileName}</span>
                   <span className="mx-2">|</span>
@@ -404,23 +467,25 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           </div>
 
           {/* 상세 목록 */}
-          <div className="max-h-80 overflow-y-auto">
-            <table className="w-full text-sm">
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-slate-50 sticky top-0">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">외주처</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">제품코드</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">품명</th>
-                  <th className="px-4 py-3 text-right font-semibold text-slate-600">수량</th>
+                  <th className="px-4 py-3 text-center font-semibold text-slate-600 whitespace-nowrap">외주처</th>
+                  <th className="px-4 py-3 text-center font-semibold text-slate-600 whitespace-nowrap">제품코드</th>
+                  <th className="px-4 py-3 text-center font-semibold text-slate-600 whitespace-nowrap">품명</th>
+                  <th className="px-4 py-3 text-center font-semibold text-slate-600 whitespace-nowrap">수량</th>
+                  <th className="px-4 py-3 text-center font-semibold text-slate-600 whitespace-nowrap">납기일</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {parsedOrders.map((order, index) => (
                   <tr key={index} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-slate-700 font-medium">{order.vendorName}</td>
-                    <td className="px-4 py-3 text-slate-500 font-mono text-xs">{order.productCode}</td>
-                    <td className="px-4 py-3 text-slate-800">{order.productName}</td>
-                    <td className="px-4 py-3 text-right text-blue-700 font-bold">{order.quantity.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-slate-700 font-medium whitespace-nowrap">{order.vendorName}</td>
+                    <td className="px-4 py-3 text-slate-500 font-mono text-xs whitespace-nowrap">{order.productCode}</td>
+                    <td className="px-4 py-3 text-slate-800 whitespace-nowrap">{order.productName}</td>
+                    <td className="px-4 py-3 text-right text-blue-700 font-bold whitespace-nowrap">{order.quantity.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center text-slate-600 whitespace-nowrap">{order.deliveryDate ? order.deliveryDate.slice(5) : '-'}</td>
                   </tr>
                 ))}
               </tbody>

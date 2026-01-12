@@ -3,18 +3,15 @@
  * 관리자 대시보드 - Supabase 연동
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
-import type { User as DbUser, OrderInsert, Vendor } from '@/types/database';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import type { User as DbUser, OrderInsert, Vendor, FileUploadWithUser } from '@/types/database';
 import { User } from '@/types';
 import { useOrders } from '@/hooks/useOrders';
 import { useVendors, useVendorTargets } from '@/hooks/useVendors';
-import { createFileUpload } from '@/services/fileUploadService';
+import { createFileUpload, getFileUploads } from '@/services/fileUploadService';
 import { FileUpload } from '@/components/FileUpload';
 import { VendorCard } from '@/components/VendorCard';
 import { UserManagement } from '@/components/UserManagement';
-import { Button } from '@/components/Button';
-import { parseOrdersWithGemini } from '@/services/geminiService';
-import { v4 as uuidv4 } from 'uuid';
 
 interface AdminDashboardProps {
   user: User;
@@ -33,8 +30,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('input');
   const [notification, setNotification] = useState<string | null>(null);
-  const [rawInput, setRawInput] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [fileUploads, setFileUploads] = useState<FileUploadWithUser[]>([]);
+  const [fileUploadsLoading, setFileUploadsLoading] = useState(false);
 
   // Supabase 훅
   const { orders, isLoading: ordersLoading, error: ordersError, addOrders, removeAllOrders, refetch: refetchOrders } = useOrders();
@@ -90,56 +87,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setActiveTab('list');
   }, [addOrders, dbUser.id, showNotification]);
 
-  // 텍스트 처리 (Gemini AI)
-  const handleTextProcess = useCallback(async () => {
-    if (!rawInput.trim()) return;
-
-    setIsProcessing(true);
+  // 파일 업로드 이력 불러오기
+  const loadFileUploads = useCallback(async () => {
+    setFileUploadsLoading(true);
     try {
-      const parsedItems = await parseOrdersWithGemini(rawInput, false);
-
-      const today = new Date().toISOString().split('T')[0];
-      const newOrders: OrderInsert[] = parsedItems.map(item => {
-        // vendorName으로 vendor_id 찾기
-        const vendor = vendors.find(v => v.name === item.vendorName);
-        if (!vendor) {
-          console.warn(`외주처를 찾을 수 없습니다: ${item.vendorName}`);
-          return null;
-        }
-
-        const quantityStr = String(item.quantity || '').replace(/[^\d]/g, '');
-        const quantity = parseInt(quantityStr) || 0;
-
-        return {
-          vendor_id: vendor.id,
-          product_name: item.productName,
-          product_code: item.productCode,
-          quantity,
-          order_date: today,
-          uploaded_by: dbUser.id
-        };
-      }).filter((order): order is OrderInsert => order !== null);
-
-      if (newOrders.length === 0) {
-        throw new Error('유효한 발주 데이터를 찾을 수 없습니다.');
-      }
-
-      const { success, error } = await addOrders(newOrders);
-
-      if (!success || error) {
-        throw new Error(error?.message || '주문 저장에 실패했습니다.');
-      }
-
-      setRawInput('');
-      setActiveTab('list');
-      showNotification(`${newOrders.length}건의 발주가 등록되었습니다.`);
+      const { data, error } = await getFileUploads();
+      if (error) throw error;
+      setFileUploads(data || []);
     } catch (error) {
-      alert('처리 중 오류가 발생했습니다. 다시 시도해주세요.');
-      console.error(error);
+      console.error('파일 업로드 이력 조회 오류:', error);
     } finally {
-      setIsProcessing(false);
+      setFileUploadsLoading(false);
     }
-  }, [rawInput, vendors, dbUser.id, addOrders, showNotification]);
+  }, []);
+
+  // 컴포넌트 마운트 시 파일 업로드 이력 불러오기
+  useEffect(() => {
+    loadFileUploads();
+  }, [loadFileUploads]);
 
   // 데이터 초기화
   const handleClear = useCallback(async () => {
@@ -324,36 +289,61 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <FileUpload
               vendors={vendors}
               userId={dbUser.id}
-              onUploadComplete={handleUploadComplete}
+              onUploadComplete={async (orders, fileName, orderDate) => {
+                await handleUploadComplete(orders, fileName, orderDate);
+                loadFileUploads(); // 업로드 후 리스트 갱신
+              }}
             />
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200"></div>
+            {/* 업로드 파일 리스트 */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <h3 className="text-base font-bold text-slate-800">업로드 이력</h3>
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-slate-50 px-2 text-slate-400 font-medium">또는 텍스트 직접 입력</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <textarea
-                value={rawInput}
-                onChange={(e) => setRawInput(e.target.value)}
-                placeholder="텍스트로 발주 내용을 직접 입력하실 수도 있습니다."
-                className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm"
-              />
-              <div className="mt-4 flex justify-end">
-                <Button
-                  onClick={handleTextProcess}
-                  isLoading={isProcessing}
-                  disabled={!rawInput.trim() || isProcessing}
-                  variant="secondary"
-                  className="text-sm"
-                >
-                  텍스트로 등록
-                </Button>
-              </div>
+              
+              {fileUploadsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : fileUploads.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-sm">
+                  업로드된 파일이 없습니다.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                  {fileUploads.map((upload) => (
+                    <div key={upload.id} className="px-5 py-3 hover:bg-slate-50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-slate-800 truncate max-w-[200px]">
+                              {upload.file_name}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              {new Date(upload.created_at).toLocaleDateString('ko-KR', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-blue-600">{upload.order_count}건</div>
+                          <div className="text-xs text-slate-400">발주일: {upload.order_date}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -429,85 +419,173 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="space-y-6">
                   {/* 막대 그래프 */}
                   <div className="space-y-4">
-                    {sortedReportVendors.map((vendorName, index) => {
-                      const qty = reportData[vendorName];
-                      const target = vendorTargetsMap[vendorName] || 0;
-                      const achievementRate = target > 0 ? (qty / target) * 100 : 0;
-                      const barWidth = Math.min(achievementRate, 100);
-                      const color = colors[index % colors.length];
+                    {(() => {
+                      // 일수 기준 예상 목표 위치 계산 (모든 업체 동일)
+                      const today = new Date();
+                      const currentDay = today.getDate();
+                      const workingDays = 20;
+                      const expectedPercent = (Math.min(currentDay, workingDays) / workingDays) * 100;
+                      
+                      return sortedReportVendors.map((vendorName, index) => {
+                        const qty = reportData[vendorName];
+                        const target = vendorTargetsMap[vendorName] || 0;
+                        const achievementRate = target > 0 ? (qty / target) * 100 : 0;
+                        const barWidth = Math.min(achievementRate, 100);
+                        const color = colors[index % colors.length];
+                        
+                        // 일수 기준 진행 상태 계산
+                        const expectedQty = target > 0 ? (target / workingDays) * Math.min(currentDay, workingDays) : 0;
+                        const progressRatio = expectedQty > 0 ? qty / expectedQty : 0;
+                        
+                        const getStatus = () => {
+                          if (target === 0) return null;
+                          if (progressRatio <= 0.9) return { icon: '🔥', text: '서두르세요', color: 'text-red-500' };
+                          if (progressRatio <= 1.1) return { icon: '👍', text: '좋아요', color: 'text-blue-500' };
+                          return { icon: '🎉', text: '잘하고 있어요', color: 'text-emerald-500' };
+                        };
+                        const status = getStatus();
 
-                      return (
-                        <div key={vendorName} className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-medium text-slate-700">
-                              {vendorName}
-                            </div>
-                            <div className="text-sm text-slate-500">
-                              <span className="font-bold" style={{ color }}>{achievementRate.toFixed(1)}%</span>
-                              <span className="text-slate-400 ml-1">달성</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-8 bg-slate-100 rounded-lg overflow-hidden relative">
-                              <div
-                                className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-2"
-                                style={{ width: `${barWidth}%`, backgroundColor: color }}
-                              >
-                                {barWidth >= 20 && (
-                                  <span className="text-white text-sm font-bold drop-shadow">
-                                    {qty.toLocaleString()}
+                        return (
+                          <div key={vendorName} className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-slate-700">{vendorName}</span>
+                                {status && (
+                                  <span className={`text-xs font-medium ${status.color}`}>
+                                    {status.icon} {status.text}
                                   </span>
                                 )}
                               </div>
-                              {barWidth < 20 && (
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600 text-sm font-bold">
-                                  {qty.toLocaleString()}
-                                </span>
-                              )}
+                              <div className="text-sm text-slate-500">
+                                <span className="font-bold" style={{ color }}>{achievementRate.toFixed(1)}%</span>
+                                <span className="text-slate-400 ml-1">달성</span>
+                              </div>
                             </div>
-                            <div className="w-24 text-right text-xs text-slate-400 flex-shrink-0">
-                              목표: {target > 0 ? target.toLocaleString() : '-'}
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 relative">
+                                {/* 일수 기준 예상 목표 수량 (점선 위) */}
+                                {target > 0 && (
+                                  <div 
+                                    className="absolute -top-4 text-[10px] text-slate-500 font-medium whitespace-nowrap"
+                                    style={{ left: `${expectedPercent}%`, transform: 'translateX(-50%)' }}
+                                  >
+                                    {Math.round(expectedQty).toLocaleString()}
+                                  </div>
+                                )}
+                                {/* 막대 그래프 영역 */}
+                                <div className="h-8 bg-slate-100 rounded-lg overflow-hidden relative">
+                                  {/* 실제 달성량 막대 */}
+                                  <div
+                                    className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-2"
+                                    style={{ width: `${barWidth}%`, backgroundColor: color }}
+                                  >
+                                    {barWidth >= 20 && (
+                                      <span className="text-white text-sm font-bold drop-shadow">
+                                        {qty.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {barWidth < 20 && (
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600 text-sm font-bold">
+                                      {qty.toLocaleString()}
+                                    </span>
+                                  )}
+                                  {/* 일수 기준 예상 목표 점선 */}
+                                  {target > 0 && (
+                                    <div
+                                      className="absolute top-0 h-full border-r-2 border-dashed border-slate-400"
+                                      style={{ left: `${expectedPercent}%` }}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                              <div className="w-24 text-right text-xs text-slate-400 flex-shrink-0">
+                                목표: {target > 0 ? target.toLocaleString() : '-'}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
 
                   {/* 합계 */}
-                  <div className="pt-4 border-t-2 border-slate-300 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="text-base font-bold text-slate-800">
-                        총 발주 수량
-                      </div>
-                      <div className="text-sm text-slate-500">
-                        <span className="font-bold text-blue-600">{totalAchievementRate.toFixed(1)}%</span>
-                        <span className="text-slate-400 ml-1">달성</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-10 bg-slate-200 rounded-lg overflow-hidden relative">
-                        <div
-                          className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
-                          style={{ width: `${Math.min(totalAchievementRate, 100)}%`, backgroundColor: '#1E40AF' }}
-                        >
-                          {totalAchievementRate >= 15 && (
-                            <span className="text-white text-lg font-bold drop-shadow">
-                              {totalQuantity.toLocaleString()}
-                            </span>
-                          )}
+                  {(() => {
+                    const today = new Date();
+                    const currentDay = today.getDate();
+                    const workingDays = 20;
+                    const expectedPercent = (Math.min(currentDay, workingDays) / workingDays) * 100;
+                    const totalExpectedQty = totalTarget > 0 ? (totalTarget / workingDays) * Math.min(currentDay, workingDays) : 0;
+                    const totalProgressRatio = totalExpectedQty > 0 ? totalQuantity / totalExpectedQty : 0;
+                    
+                    const getTotalStatus = () => {
+                      if (totalTarget === 0) return null;
+                      if (totalProgressRatio <= 0.9) return { icon: '🔥', text: '서두르세요', color: 'text-red-500' };
+                      if (totalProgressRatio <= 1.1) return { icon: '👍', text: '좋아요', color: 'text-blue-500' };
+                      return { icon: '🎉', text: '잘하고 있어요', color: 'text-emerald-500' };
+                    };
+                    const totalStatus = getTotalStatus();
+
+                    return (
+                      <div className="pt-4 border-t-2 border-slate-300 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-bold text-slate-800">총 발주 수량</span>
+                            {totalStatus && (
+                              <span className={`text-xs font-medium ${totalStatus.color}`}>
+                                {totalStatus.icon} {totalStatus.text}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-slate-500">
+                            <span className="font-bold text-blue-600">{totalAchievementRate.toFixed(1)}%</span>
+                            <span className="text-slate-400 ml-1">달성</span>
+                          </div>
                         </div>
-                        {totalAchievementRate < 15 && (
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700 text-lg font-bold">
-                            {totalQuantity.toLocaleString()}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 relative">
+                            {/* 일수 기준 예상 목표 수량 (점선 위) */}
+                            {totalTarget > 0 && (
+                              <div 
+                                className="absolute -top-4 text-[10px] text-slate-500 font-medium whitespace-nowrap"
+                                style={{ left: `${expectedPercent}%`, transform: 'translateX(-50%)' }}
+                              >
+                                {Math.round(totalExpectedQty).toLocaleString()}
+                              </div>
+                            )}
+                            {/* 막대 그래프 영역 */}
+                            <div className="h-10 bg-slate-200 rounded-lg overflow-hidden relative">
+                              <div
+                                className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
+                                style={{ width: `${Math.min(totalAchievementRate, 100)}%`, backgroundColor: '#1E40AF' }}
+                              >
+                                {totalAchievementRate >= 15 && (
+                                  <span className="text-white text-lg font-bold drop-shadow">
+                                    {totalQuantity.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                              {totalAchievementRate < 15 && (
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700 text-lg font-bold">
+                                  {totalQuantity.toLocaleString()}
+                                </span>
+                              )}
+                              {/* 일수 기준 예상 목표 점선 */}
+                              {totalTarget > 0 && (
+                                <div
+                                  className="absolute top-0 h-full border-r-2 border-dashed border-slate-400"
+                                  style={{ left: `${expectedPercent}%` }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                          <div className="w-24 text-right text-xs text-slate-500 flex-shrink-0 font-medium">
+                            목표: {totalTarget.toLocaleString()}
+                          </div>
+                        </div>
                       </div>
-                      <div className="w-24 text-right text-xs text-slate-500 flex-shrink-0 font-medium">
-                        목표: {totalTarget.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>

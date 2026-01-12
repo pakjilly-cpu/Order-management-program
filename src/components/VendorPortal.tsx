@@ -6,6 +6,7 @@
 import React, { useMemo, useState } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useVendorTargets } from '@/hooks/useVendors';
+import type { OrderWithVendor } from '@/types/database';
 
 interface VendorPortalProps {
   vendorId: string;
@@ -14,6 +15,69 @@ interface VendorPortalProps {
   onLogout?: () => void; // 외주처 로그인 시 로그아웃 버튼
 }
 
+// 정렬 키 타입
+type SortKey = 'order_date' | 'product_code' | 'product_name' | 'quantity' | 'delivery_date';
+type SortOrder = 'asc' | 'desc';
+
+// 정렬 아이콘 컴포넌트
+const SortIcon: React.FC<{ active: boolean; order: SortOrder }> = ({ active, order }) => (
+  <span className={`ml-1 inline-flex ${active ? 'text-blue-600' : 'text-slate-300'}`}>
+    {order === 'asc' ? (
+      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 6.414l-3.293 3.293a1 1 0 01-1.414 0z" />
+      </svg>
+    ) : (
+      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L10 13.586l3.293-3.293a1 1 0 011.414 0z" />
+      </svg>
+    )}
+  </span>
+);
+
+// 달성율 상태 계산 함수
+const getProgressStatus = (currentQty: number, targetQty: number, workingDays: number = 20) => {
+  if (targetQty === 0) return null;
+  
+  const today = new Date();
+  const currentDay = today.getDate();
+  const dailyTarget = targetQty / workingDays;
+  const expectedQty = dailyTarget * Math.min(currentDay, workingDays);
+  
+  const ratio = currentQty / expectedQty;
+  
+  if (ratio < 0.9) {
+    return {
+      status: 'behind',
+      message: '발주가 부족해요, 서두르세요!',
+      icon: '🔥',
+      bgColor: 'bg-gradient-to-r from-red-50 to-orange-50',
+      borderColor: 'border-red-200',
+      textColor: 'text-red-700',
+      iconBg: 'bg-red-100',
+    };
+  } else if (ratio <= 1.1) {
+    return {
+      status: 'on_track',
+      message: '지금까지는 나쁘지 않아요!',
+      icon: '👍',
+      bgColor: 'bg-gradient-to-r from-blue-50 to-indigo-50',
+      borderColor: 'border-blue-200',
+      textColor: 'text-blue-700',
+      iconBg: 'bg-blue-100',
+    };
+  } else {
+    return {
+      status: 'ahead',
+      message: '잘하고 있어요!',
+      icon: '🎉',
+      bgColor: 'bg-gradient-to-r from-emerald-50 to-teal-50',
+      borderColor: 'border-emerald-200',
+      textColor: 'text-emerald-700',
+      iconBg: 'bg-emerald-100',
+    };
+  }
+};
+
 export const VendorPortal: React.FC<VendorPortalProps> = ({
   vendorId,
   vendorName,
@@ -21,6 +85,10 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
   onLogout
 }) => {
   const [activeTab, setActiveTab] = useState<'list' | 'report'>('list');
+  
+  // 정렬 상태
+  const [sortKey, setSortKey] = useState<SortKey>('order_date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   // Supabase에서 해당 외주처의 주문만 조회
   const { orders, isLoading, error, toggleComplete, refetch } = useOrders({ vendorId });
@@ -39,6 +107,44 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
     return target?.target_quantity || 0;
   }, [targets, vendorId]);
 
+  // 정렬된 주문 목록
+  const sortedOrders = useMemo(() => {
+    return [...orders].sort((a, b) => {
+      let aVal: string | number = '';
+      let bVal: string | number = '';
+      
+      switch (sortKey) {
+        case 'order_date':
+          aVal = a.order_date || '';
+          bVal = b.order_date || '';
+          break;
+        case 'product_code':
+          aVal = a.product_code || '';
+          bVal = b.product_code || '';
+          break;
+        case 'product_name':
+          aVal = a.product_name || '';
+          bVal = b.product_name || '';
+          break;
+        case 'quantity':
+          aVal = a.quantity;
+          bVal = b.quantity;
+          break;
+        case 'delivery_date':
+          aVal = a.delivery_date || '';
+          bVal = b.delivery_date || '';
+          break;
+      }
+      
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      
+      const comparison = String(aVal).localeCompare(String(bVal));
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [orders, sortKey, sortOrder]);
+
   // 완료 상태 계산
   const completedCount = orders.filter(o => o.is_completed).length;
   const progress = orders.length > 0 ? (completedCount / orders.length) * 100 : 0;
@@ -51,8 +157,48 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
     const filtered = orders.filter(o => o.product_code?.startsWith('9'));
     const totalQty = filtered.reduce((sum, o) => sum + o.quantity, 0);
     const achievementRate = vendorTarget > 0 ? (totalQty / vendorTarget) * 100 : 0;
-    return { totalQty, target: vendorTarget, achievementRate };
+    const progressStatus = getProgressStatus(totalQty, vendorTarget);
+    return { totalQty, target: vendorTarget, achievementRate, progressStatus };
   }, [orders, vendorTarget]);
+
+  // 월별 발주 수량 데이터 (최근 12개월)
+  const monthlyData = useMemo(() => {
+    const filtered = orders.filter(o => o.product_code?.startsWith('9'));
+    const monthMap: Record<string, number> = {};
+    
+    filtered.forEach(order => {
+      if (order.order_date) {
+        const date = new Date(order.order_date);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        monthMap[key] = (monthMap[key] || 0) + order.quantity;
+      }
+    });
+
+    // 최근 12개월 기준으로 정렬
+    const sortedMonths = Object.keys(monthMap).sort().slice(-12);
+    const maxQty = Math.max(...sortedMonths.map(k => monthMap[k]), 1);
+    
+    return sortedMonths.map(key => {
+      const [year, month] = key.split('-');
+      return {
+        key,
+        year,
+        month: parseInt(month),
+        quantity: monthMap[key],
+        percentage: (monthMap[key] / maxQty) * 100
+      };
+    });
+  }, [orders]);
+
+  // 정렬 핸들러
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortOrder('asc');
+    }
+  };
 
   // 체크 토글 핸들러
   const handleToggleItem = async (orderId: string) => {
@@ -70,6 +216,24 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
       await toggleComplete(item.id);
     }
   };
+
+  // 정렬 가능한 테이블 헤더 컴포넌트
+  const SortableHeader: React.FC<{ 
+    label: string; 
+    sortKeyName: SortKey; 
+    align?: 'left' | 'right' | 'center';
+    className?: string;
+  }> = ({ label, sortKeyName, align = 'center', className = '' }) => (
+    <th
+      onClick={() => handleSort(sortKeyName)}
+      className={`px-3 py-3 font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors select-none whitespace-nowrap text-center ${className}`}
+    >
+      <span className="inline-flex items-center justify-center">
+        {label}
+        <SortIcon active={sortKey === sortKeyName} order={sortKey === sortKeyName ? sortOrder : 'asc'} />
+      </span>
+    </th>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -213,6 +377,25 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
               </div>
             ) : (
               <div className="space-y-4">
+                {/* 달성율 상태 표시 카드 */}
+                {reportData.progressStatus && (
+                  <div className={`${reportData.progressStatus.bgColor} ${reportData.progressStatus.borderColor} border rounded-xl p-4 mb-6`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`${reportData.progressStatus.iconBg} w-12 h-12 rounded-full flex items-center justify-center text-2xl`}>
+                        {reportData.progressStatus.icon}
+                      </div>
+                      <div className="flex-1">
+                        <p className={`font-bold text-lg ${reportData.progressStatus.textColor}`}>
+                          {reportData.progressStatus.message}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-0.5">
+                          오늘 기준 예상 목표: {Math.round((reportData.target / 20) * new Date().getDate()).toLocaleString()}개
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* 달성률 표시 */}
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-medium text-slate-700">
@@ -231,7 +414,8 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                       className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
                       style={{
                         width: `${Math.min(reportData.achievementRate, 100)}%`,
-                        backgroundColor: '#3B82F6'
+                        backgroundColor: reportData.progressStatus?.status === 'behind' ? '#EF4444' :
+                                        reportData.progressStatus?.status === 'ahead' ? '#10B981' : '#3B82F6'
                       }}
                     >
                       {reportData.achievementRate >= 20 && (
@@ -262,6 +446,92 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                     <div className="text-xs text-slate-500 mt-1">목표까지 남은 수량</div>
                   </div>
                 </div>
+
+                {/* 월별 발주 추이 */}
+                {monthlyData.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-slate-200">
+                    <h4 className="text-sm font-semibold text-slate-700 mb-4">월별 발주 추이</h4>
+                    
+                    {/* 막대 영역 + 라벨 + 꺾은선 SVG */}
+                    <div className="relative h-32">
+                      {/* 막대들 + 상단 라벨 */}
+                      <div className="flex items-end h-full">
+                        {monthlyData.map((data, index) => {
+                          const isCurrentMonth = index === monthlyData.length - 1;
+                          const isAchieved = vendorTarget > 0 && data.quantity >= vendorTarget;
+                          const barHeight = Math.max(data.percentage, 4);
+                          return (
+                            <div key={data.key} className="flex-1 flex flex-col items-center justify-end h-full px-0.5">
+                              {/* 막대 위 라벨 */}
+                              <div className="flex flex-col items-center mb-1">
+                                {isCurrentMonth ? (
+                                  <span className="text-[8px] font-semibold text-emerald-600">진행중</span>
+                                ) : vendorTarget > 0 ? (
+                                  <span className={`text-[8px] font-semibold ${isAchieved ? 'text-emerald-600' : 'text-red-500'}`}>
+                                    {isAchieved ? '달성' : '미달'}
+                                  </span>
+                                ) : (
+                                  <span className="text-[8px]">&nbsp;</span>
+                                )}
+                                <span className="text-[9px] whitespace-nowrap font-bold text-slate-600">
+                                  {data.quantity > 0 ? (data.quantity / 10000).toFixed(0) + '만' : ''}
+                                </span>
+                              </div>
+                              {/* 막대 */}
+                              <div
+                                className="w-full max-w-[28px] rounded-t transition-all duration-300"
+                                style={{
+                                  height: `${barHeight}%`,
+                                  backgroundColor: isCurrentMonth 
+                                    ? 'rgba(59, 130, 246, 0.4)' 
+                                    : isAchieved && vendorTarget > 0
+                                      ? 'rgba(16, 185, 129, 0.3)'
+                                      : 'rgba(203, 213, 225, 0.5)'
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* 꺾은선 - 막대 상단 연결 */}
+                      <svg 
+                        className="absolute inset-0 w-full h-full pointer-events-none"
+                        viewBox={`0 0 ${monthlyData.length * 100} 100`}
+                        preserveAspectRatio="none"
+                      >
+                        <polyline
+                          fill="none"
+                          stroke="#3B82F6"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeDasharray="6,4"
+                          vectorEffect="non-scaling-stroke"
+                          points={monthlyData.map((data, index) => {
+                            const x = (index * 100) + 50;
+                            const barHeightPercent = Math.max(data.percentage, 4);
+                            // 라벨 영역(약 30%) 고려해서 y 계산
+                            const y = 70 - (barHeightPercent * 0.7);
+                            return `${x},${y}`;
+                          }).join(' ')}
+                        />
+                      </svg>
+                    </div>
+                    
+                    {/* 하단: 월 라벨 */}
+                    <div className="flex mt-1">
+                      {monthlyData.map((data, index) => (
+                        <div key={data.key} className="flex-1 flex flex-col items-center px-0.5">
+                          <span className="text-[10px] text-slate-500 font-medium">{data.month}월</span>
+                          {(data.month === 1 || index === 0) && (
+                            <span className="text-[9px] text-slate-400">{data.year}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -308,19 +578,20 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                   </button>
                 </div>
 
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+                  <table className="w-full text-sm min-w-[700px]">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
-                        <th className="px-3 py-3 text-left font-semibold text-slate-600 w-12">확인</th>
-                        <th className="px-3 py-3 text-left font-semibold text-slate-600">발주일</th>
-                        <th className="px-3 py-3 text-left font-semibold text-slate-600">품목</th>
-                        <th className="px-3 py-3 text-left font-semibold text-slate-600">품명</th>
-                        <th className="px-3 py-3 text-right font-semibold text-slate-600">수량</th>
+                        <th className="px-3 py-3 text-center font-semibold text-slate-600 w-14 whitespace-nowrap">확인</th>
+                        <SortableHeader label="발주일" sortKeyName="order_date" />
+                        <SortableHeader label="품목" sortKeyName="product_code" />
+                        <SortableHeader label="품명" sortKeyName="product_name" />
+                        <SortableHeader label="수량" sortKeyName="quantity" align="right" />
+                        <SortableHeader label="납기일" sortKeyName="delivery_date" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {orders.map((item) => (
+                      {sortedOrders.map((item) => (
                         <tr
                           key={item.id}
                           onClick={() => handleToggleItem(item.id)}
@@ -352,7 +623,7 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                           }`}>
                             {item.product_code || '-'}
                           </td>
-                          <td className={`px-3 py-3 font-medium ${
+                          <td className={`px-3 py-3 font-medium whitespace-nowrap ${
                             item.is_completed ? 'text-slate-400 line-through' : 'text-slate-800'
                           }`}>
                             {item.product_name}
@@ -362,6 +633,11 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                           }`}>
                             {item.quantity.toLocaleString()}
                           </td>
+                          <td className={`px-3 py-3 whitespace-nowrap ${
+                            item.is_completed ? 'text-slate-400' : 'text-slate-600'
+                          }`}>
+                            {item.delivery_date || '-'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -370,18 +646,19 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
               </div>
             ) : (
               /* 관리자 미리보기 모드 - 표 형식 */
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+                <table className="w-full text-sm min-w-[650px]">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-slate-600">발주일</th>
-                      <th className="px-4 py-3 text-left font-semibold text-slate-600">품목</th>
-                      <th className="px-4 py-3 text-left font-semibold text-slate-600">품명</th>
-                      <th className="px-4 py-3 text-right font-semibold text-slate-600">수량</th>
+                      <SortableHeader label="발주일" sortKeyName="order_date" className="px-4" />
+                      <SortableHeader label="품목" sortKeyName="product_code" className="px-4" />
+                      <SortableHeader label="품명" sortKeyName="product_name" className="px-4" />
+                      <SortableHeader label="수량" sortKeyName="quantity" align="right" className="px-4" />
+                      <SortableHeader label="납기일" sortKeyName="delivery_date" className="px-4" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {orders.map((item) => (
+                    {sortedOrders.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 text-blue-600 font-medium whitespace-nowrap">
                           {item.order_date || '-'}
@@ -389,11 +666,14 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                         <td className="px-4 py-3 text-slate-500 font-mono text-xs whitespace-nowrap">
                           {item.product_code || '-'}
                         </td>
-                        <td className="px-4 py-3 text-slate-800 font-medium">
+                        <td className="px-4 py-3 text-slate-800 font-medium whitespace-nowrap">
                           {item.product_name}
                         </td>
                         <td className="px-4 py-3 text-right text-blue-700 font-bold whitespace-nowrap">
                           {item.quantity.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                          {item.delivery_date || '-'}
                         </td>
                       </tr>
                     ))}

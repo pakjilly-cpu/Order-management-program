@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider } from '@/lib/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { AdminDashboard } from '@/components/AdminDashboard';
 import { VendorPortal } from '@/components/VendorPortal';
 import { LoginScreen } from '@/components/LoginScreen';
+import { CodeEntryScreen } from '@/components/CodeEntryScreen';
 import { User } from '@/types';
+
+// 세션 스토리지 키
+const SESSION_CODE_KEY = 'user_code';
+const SESSION_TYPE_KEY = 'user_type';
+const SESSION_LOGIN_FLAG = 'login_initiated';
+const SESSION_VENDOR_ID_KEY = 'vendor_id';
+const SESSION_VENDOR_NAME_KEY = 'vendor_name';
 
 // ============================================
 // 승인 대기 화면 컴포넌트
@@ -87,8 +95,81 @@ const LoadingScreen: React.FC = () => {
 const AppContent: React.FC = () => {
   const { user, isLoading, isAuthenticated, signInWithGoogle, signOut } = useAuth();
 
+  // 코드 입력 상태
+  const [userCode, setUserCode] = useState<string | null>(null);
+  const [userType, setUserType] = useState<'ADMIN' | 'VENDOR' | null>(null);
+  // Vendor 정보 (UUID, 이름) - 외주업체 로그인 시 사용
+  const [vendorData, setVendorData] = useState<{ id: string; name: string } | null>(null);
+
   // Preview vendor state (관리자가 외주처 포털 미리보기)
   const [previewVendor, setPreviewVendor] = useState<{ vendorId: string; vendorName: string } | null>(null);
+
+  // Google 로그인 핸들러 (코드 초기화 후 로그인)
+  const handleGoogleLogin = async () => {
+    // 로그인 플래그 설정 - OAuth 리다이렉트 후 코드 복원 방지
+    sessionStorage.setItem(SESSION_LOGIN_FLAG, 'true');
+    setUserCode(null);
+    setUserType(null);
+    await signInWithGoogle();
+  };
+
+  // 세션에서 코드 복원 (OAuth 리다이렉트 후에는 복원하지 않음)
+  useEffect(() => {
+    const loginFlag = sessionStorage.getItem(SESSION_LOGIN_FLAG);
+    
+    if (loginFlag) {
+      // OAuth 리다이렉트 후 - 플래그 제거하고 코드도 초기화
+      sessionStorage.removeItem(SESSION_LOGIN_FLAG);
+      sessionStorage.removeItem(SESSION_CODE_KEY);
+      sessionStorage.removeItem(SESSION_TYPE_KEY);
+      sessionStorage.removeItem(SESSION_VENDOR_ID_KEY);
+      sessionStorage.removeItem(SESSION_VENDOR_NAME_KEY);
+      return;
+    }
+    
+    // 일반 새로고침 - 코드 복원
+    const savedCode = sessionStorage.getItem(SESSION_CODE_KEY);
+    const savedType = sessionStorage.getItem(SESSION_TYPE_KEY) as 'ADMIN' | 'VENDOR' | null;
+    const savedVendorId = sessionStorage.getItem(SESSION_VENDOR_ID_KEY);
+    const savedVendorName = sessionStorage.getItem(SESSION_VENDOR_NAME_KEY);
+    
+    if (savedCode && savedType) {
+      setUserCode(savedCode);
+      setUserType(savedType);
+      
+      // Vendor 정보 복원
+      if (savedType === 'VENDOR' && savedVendorId && savedVendorName) {
+        setVendorData({ id: savedVendorId, name: savedVendorName });
+      }
+    }
+  }, []);
+
+  // 코드 제출 핸들러
+  const handleCodeSubmit = (code: string, type: 'ADMIN' | 'VENDOR', vendorInfo?: { id: string; name: string }) => {
+    setUserCode(code);
+    setUserType(type);
+    sessionStorage.setItem(SESSION_CODE_KEY, code);
+    sessionStorage.setItem(SESSION_TYPE_KEY, type);
+    
+    // Vendor 정보 저장
+    if (type === 'VENDOR' && vendorInfo) {
+      setVendorData(vendorInfo);
+      sessionStorage.setItem(SESSION_VENDOR_ID_KEY, vendorInfo.id);
+      sessionStorage.setItem(SESSION_VENDOR_NAME_KEY, vendorInfo.name);
+    }
+  };
+
+  // 로그아웃 핸들러 (코드도 초기화)
+  const handleLogout = async () => {
+    setUserCode(null);
+    setUserType(null);
+    setVendorData(null);
+    sessionStorage.removeItem(SESSION_CODE_KEY);
+    sessionStorage.removeItem(SESSION_TYPE_KEY);
+    sessionStorage.removeItem(SESSION_VENDOR_ID_KEY);
+    sessionStorage.removeItem(SESSION_VENDOR_NAME_KEY);
+    await signOut();
+  };
 
   // --- Render Logic ---
 
@@ -101,7 +182,7 @@ const AppContent: React.FC = () => {
   if (!isAuthenticated || !user) {
     return (
       <LoginScreen
-        onGoogleLogin={signInWithGoogle}
+        onGoogleLogin={handleGoogleLogin}
         isLoading={isLoading}
       />
     );
@@ -113,14 +194,26 @@ const AppContent: React.FC = () => {
       <PendingApprovalScreen
         userName={user.name}
         userEmail={user.email}
-        onLogout={signOut}
+        onLogout={handleLogout}
       />
     );
   }
 
-  // DB User를 기존 User 타입으로 변환 (기존 컴포넌트와 호환성 유지)
+  // 코드 미입력 상태 - 코드 입력 화면
+  if (!userCode || !userType) {
+    return (
+      <CodeEntryScreen
+        onCodeSubmit={handleCodeSubmit}
+        onLogout={handleLogout}
+        userName={user.name}
+        userEmail={user.email}
+      />
+    );
+  }
+
+  // DB User를 기존 User 타입으로 변환 (코드 입력에 따른 타입 사용)
   const legacyUser: User = {
-    type: user.role === 'admin' ? 'ADMIN' : 'VENDOR',
+    type: userType,
     id: user.id,
     name: user.name ?? user.email,
   };
@@ -136,13 +229,24 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Admin 또는 일반 사용자 - 대시보드 표시
+  // 외주업체로 로그인한 경우 - VendorPortal 표시
+  if (userType === 'VENDOR' && vendorData) {
+    return (
+      <VendorPortal
+        vendorId={vendorData.id}
+        vendorName={vendorData.name}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // Admin - 대시보드 표시
   return (
     <AdminDashboard
       user={legacyUser}
       dbUser={user}
       onNavigateToVendor={(vendorId, vendorName) => setPreviewVendor({ vendorId, vendorName })}
-      onLogout={signOut}
+      onLogout={handleLogout}
     />
   );
 };
