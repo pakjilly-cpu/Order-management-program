@@ -188,23 +188,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <div className="max-w-3xl mx-auto w-full pb-20">
       {/* 헤더 */}
-      <div className="flex items-center justify-between mb-8 pt-6 px-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pt-6 px-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">COSMAX 관리자</h1>
-          <p className="text-slate-500 text-sm">안녕하세요, {dbUser.name || dbUser.email}님</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">COSMAX 관리자</h1>
+          <p className="text-slate-500 text-xs sm:text-sm truncate max-w-[200px] sm:max-w-none">안녕하세요, {dbUser.name || dbUser.email}님</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           {orders.length > 0 && (
             <button
               onClick={handleClear}
-              className="text-slate-500 text-sm font-medium hover:text-red-600 px-3 py-1 bg-slate-100 rounded-lg transition-colors"
+              className="text-slate-500 text-xs sm:text-sm font-medium hover:text-red-600 px-2 sm:px-3 py-1 bg-slate-100 rounded-lg transition-colors"
             >
-              데이터 초기화
+              초기화
             </button>
           )}
           <button
             onClick={onLogout}
-            className="text-slate-500 text-sm font-medium hover:text-slate-900 px-3 py-1 border border-slate-200 rounded-lg"
+            className="text-slate-500 text-xs sm:text-sm font-medium hover:text-slate-900 px-2 sm:px-3 py-1 border border-slate-200 rounded-lg"
           >
             로그아웃
           </button>
@@ -212,42 +212,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {/* 탭 메뉴 */}
-      <div className="flex px-4 mb-6 border-b border-slate-200">
+      <div className="flex px-4 mb-6 border-b border-slate-200 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('input')}
-          className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${
+          className={`flex-1 min-w-fit pb-3 px-2 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${
             activeTab === 'input' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          발주 등록
+          등록
           {activeTab === 'input' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
         </button>
         <button
           onClick={() => setActiveTab('list')}
-          className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${
+          className={`flex-1 min-w-fit pb-3 px-2 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${
             activeTab === 'list' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          발주목록 ({vendorGroups.length})
+          목록 ({vendorGroups.length})
           {activeTab === 'list' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
         </button>
         <button
           onClick={() => setActiveTab('report')}
-          className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${
+          className={`flex-1 min-w-fit pb-3 px-2 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${
             activeTab === 'report' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          발주 리포트
+          리포트
           {activeTab === 'report' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
         </button>
         {isAdmin && (
           <button
             onClick={() => setActiveTab('users')}
-            className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${
+            className={`flex-1 min-w-fit pb-3 px-2 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${
               activeTab === 'users' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            사용자 관리
+            사용자
             {activeTab === 'users' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
           </button>
         )}

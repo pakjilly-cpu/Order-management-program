@@ -548,7 +548,7 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                 <p>배정된 발주 내역이 없습니다.</p>
               </div>
             ) : isVendorMode ? (
-              /* 외주처 모드 - 표 형식 + 체크박스 */
+              /* 외주처 모드 - 모바일: 카드 형식, 데스크톱: 표 형식 */
               <div className="space-y-3">
                 {/* 전체 체크 버튼 */}
                 <div className="flex justify-end">
@@ -578,11 +578,60 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                   </button>
                 </div>
 
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-                  <table className="w-full text-sm min-w-[700px]">
+                {/* 모바일: 카드 형식 */}
+                <div className="md:hidden space-y-3">
+                  {sortedOrders.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleToggleItem(item.id)}
+                      className={`bg-white rounded-xl border border-slate-200 shadow-sm p-4 cursor-pointer transition-colors ${
+                        item.is_completed ? 'bg-slate-50' : 'active:bg-blue-50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all duration-200
+                          ${item.is_completed
+                            ? 'bg-blue-500 border-blue-500 text-white'
+                            : 'border-slate-300 bg-white'
+                          }`}
+                        >
+                          {item.is_completed && (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-medium text-base ${item.is_completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                            {item.product_name}
+                          </div>
+                          <div className={`text-xs font-mono mt-1 ${item.is_completed ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {item.product_code || '-'}
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs">
+                            <span className={item.is_completed ? 'text-slate-400' : 'text-blue-600'}>
+                              발주: {item.order_date || '-'}
+                            </span>
+                            <span className={item.is_completed ? 'text-slate-400' : 'text-slate-600'}>
+                              납기: {item.delivery_date || '-'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className={`text-right flex-shrink-0 ${item.is_completed ? 'text-slate-400' : 'text-blue-700'}`}>
+                          <div className="text-lg font-bold">{item.quantity.toLocaleString()}</div>
+                          <div className="text-xs text-slate-400">수량</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 데스크톱: 테이블 형식 */}
+                <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+                  <table className="w-full text-sm">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
-                        <th className="px-3 py-3 text-center font-semibold text-slate-600 w-14 whitespace-nowrap">확인</th>
+                        <th className="px-3 py-3 text-center font-semibold text-slate-600 w-14">확인</th>
                         <SortableHeader label="발주일" sortKeyName="order_date" />
                         <SortableHeader label="품목" sortKeyName="product_code" />
                         <SortableHeader label="품명" sortKeyName="product_name" />
@@ -613,27 +662,27 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                               )}
                             </div>
                           </td>
-                          <td className={`px-3 py-3 font-medium whitespace-nowrap ${
+                          <td className={`px-3 py-3 font-medium ${
                             item.is_completed ? 'text-slate-400' : 'text-blue-600'
                           }`}>
                             {item.order_date || '-'}
                           </td>
-                          <td className={`px-3 py-3 font-mono text-xs whitespace-nowrap ${
+                          <td className={`px-3 py-3 font-mono text-xs ${
                             item.is_completed ? 'text-slate-400' : 'text-slate-500'
                           }`}>
                             {item.product_code || '-'}
                           </td>
-                          <td className={`px-3 py-3 font-medium whitespace-nowrap ${
+                          <td className={`px-3 py-3 font-medium ${
                             item.is_completed ? 'text-slate-400 line-through' : 'text-slate-800'
                           }`}>
                             {item.product_name}
                           </td>
-                          <td className={`px-3 py-3 text-right font-bold whitespace-nowrap ${
+                          <td className={`px-3 py-3 text-right font-bold ${
                             item.is_completed ? 'text-slate-400' : 'text-blue-700'
                           }`}>
                             {item.quantity.toLocaleString()}
                           </td>
-                          <td className={`px-3 py-3 whitespace-nowrap ${
+                          <td className={`px-3 py-3 ${
                             item.is_completed ? 'text-slate-400' : 'text-slate-600'
                           }`}>
                             {item.delivery_date || '-'}
@@ -645,41 +694,77 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                 </div>
               </div>
             ) : (
-              /* 관리자 미리보기 모드 - 표 형식 */
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-                <table className="w-full text-sm min-w-[650px]">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <SortableHeader label="발주일" sortKeyName="order_date" className="px-4" />
-                      <SortableHeader label="품목" sortKeyName="product_code" className="px-4" />
-                      <SortableHeader label="품명" sortKeyName="product_name" className="px-4" />
-                      <SortableHeader label="수량" sortKeyName="quantity" align="right" className="px-4" />
-                      <SortableHeader label="납기일" sortKeyName="delivery_date" className="px-4" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {sortedOrders.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 text-blue-600 font-medium whitespace-nowrap">
-                          {item.order_date || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-slate-500 font-mono text-xs whitespace-nowrap">
-                          {item.product_code || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-slate-800 font-medium whitespace-nowrap">
-                          {item.product_name}
-                        </td>
-                        <td className="px-4 py-3 text-right text-blue-700 font-bold whitespace-nowrap">
-                          {item.quantity.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                          {item.delivery_date || '-'}
-                        </td>
+              /* 관리자 미리보기 모드 */
+              <>
+                {/* 모바일: 카드 형식 */}
+                <div className="md:hidden space-y-3">
+                  {sortedOrders.map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-white rounded-xl border border-slate-200 shadow-sm p-4"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-base text-slate-800">
+                            {item.product_name}
+                          </div>
+                          <div className="text-xs font-mono mt-1 text-slate-500">
+                            {item.product_code || '-'}
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs">
+                            <span className="text-blue-600">
+                              발주: {item.order_date || '-'}
+                            </span>
+                            <span className="text-slate-600">
+                              납기: {item.delivery_date || '-'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0 text-blue-700">
+                          <div className="text-lg font-bold">{item.quantity.toLocaleString()}</div>
+                          <div className="text-xs text-slate-400">수량</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 데스크톱: 테이블 형식 */}
+                <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <SortableHeader label="발주일" sortKeyName="order_date" className="px-4" />
+                        <SortableHeader label="품목" sortKeyName="product_code" className="px-4" />
+                        <SortableHeader label="품명" sortKeyName="product_name" className="px-4" />
+                        <SortableHeader label="수량" sortKeyName="quantity" align="right" className="px-4" />
+                        <SortableHeader label="납기일" sortKeyName="delivery_date" className="px-4" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {sortedOrders.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 text-blue-600 font-medium">
+                            {item.order_date || '-'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500 font-mono text-xs">
+                            {item.product_code || '-'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-800 font-medium">
+                            {item.product_name}
+                          </td>
+                          <td className="px-4 py-3 text-right text-blue-700 font-bold">
+                            {item.quantity.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {item.delivery_date || '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         )}
