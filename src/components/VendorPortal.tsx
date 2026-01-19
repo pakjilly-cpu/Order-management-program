@@ -5,7 +5,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useOrders } from '@/hooks/useOrders';
-import { useVendorTargets } from '@/hooks/useVendors';
+import { useVendors, useVendorTargets } from '@/hooks/useVendors';
 import { useProductionSchedules } from '@/hooks/useProductionSchedules';
 import { ProductionGantt } from '@/components/ProductionGantt';
 import type { OrderWithVendor } from '@/types/database';
@@ -93,6 +93,7 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   const { orders, isLoading, error, toggleComplete, refetch } = useOrders({ vendorId });
+  const { vendors } = useVendors();
   const { 
     schedules, 
     isLoading: schedulesLoading, 
@@ -372,6 +373,7 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
           <div className="space-y-4">
             <ProductionGantt
               schedules={schedules}
+              vendors={vendors}
               onScheduleMove={async (scheduleId, newStartDate, newEndDate) => {
                 await moveSchedule(scheduleId, newStartDate, newEndDate);
               }}

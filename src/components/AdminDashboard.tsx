@@ -422,6 +422,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="space-y-4">
             <ProductionGantt
               schedules={schedules}
+              vendors={vendors}
               onScheduleMove={async (scheduleId, newStartDate, newEndDate) => {
                 await moveSchedule(scheduleId, newStartDate, newEndDate);
                 showNotification('생산계획이 변경되었습니다.');

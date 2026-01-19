@@ -1,18 +1,32 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
-import type { ProductionScheduleWithDetails } from '@/types/database';
+import React, { useState, useMemo, useCallback } from 'react';
+import type { ProductionScheduleWithDetails, Vendor } from '@/types/database';
+
+// 생산계획표에 표시할 외주처 목록 (고정)
+const GANTT_VENDOR_NAMES = ['위드맘', '리니어', '그램', '이시스', '엘루오', '케이코스텍', '다미'];
 
 interface ProductionGanttProps {
   schedules: ProductionScheduleWithDetails[];
+  vendors: Vendor[];
   onScheduleMove: (scheduleId: string, newStartDate: string, newEndDate: string) => Promise<void>;
   isLoading?: boolean;
   viewMode?: 'week' | 'month';
 }
 
-const STATUS_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  planned: { bg: 'bg-blue-100', border: 'border-blue-400', text: 'text-blue-700' },
-  in_progress: { bg: 'bg-amber-100', border: 'border-amber-400', text: 'text-amber-700' },
-  completed: { bg: 'bg-emerald-100', border: 'border-emerald-400', text: 'text-emerald-700' },
-  delayed: { bg: 'bg-red-100', border: 'border-red-400', text: 'text-red-700' },
+const STATUS_COLORS: Record<string, string> = {
+  planned: 'bg-blue-100 text-blue-700 border-blue-300',
+  in_progress: 'bg-amber-100 text-amber-700 border-amber-300',
+  completed: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+  delayed: 'bg-red-100 text-red-700 border-red-300',
+};
+
+const VENDOR_COLORS: Record<string, string> = {
+  '위드맘': 'bg-purple-500',
+  '리니어': 'bg-blue-500',
+  '그램': 'bg-emerald-500',
+  '이시스': 'bg-orange-500',
+  '엘루오': 'bg-pink-500',
+  '케이코스텍': 'bg-cyan-500',
+  '다미': 'bg-amber-500',
 };
 
 function addDays(date: Date, days: number): Date {
@@ -29,10 +43,6 @@ function parseDate(dateStr: string): Date {
   return new Date(dateStr + 'T00:00:00');
 }
 
-function getDaysDiff(start: Date, end: Date): number {
-  return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-}
-
 function formatDisplayDate(date: Date): string {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
@@ -47,19 +57,47 @@ function isWeekend(date: Date): boolean {
   return day === 0 || day === 6;
 }
 
+function isSameDay(date1: Date, date2: Date): boolean {
+  return date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate();
+}
+
+function isDateInRange(date: Date, startStr: string, endStr: string): boolean {
+  const start = parseDate(startStr);
+  const end = parseDate(endStr);
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return d >= start && d <= end;
+}
+
+interface VendorLine {
+  vendorId: string;
+  vendorName: string;
+  lineNumber: number;
+  key: string;
+}
+
+interface CellSchedule {
+  schedule: ProductionScheduleWithDetails;
+  isStart: boolean;
+  isEnd: boolean;
+  spanDays: number;
+}
+
 export const ProductionGantt: React.FC<ProductionGanttProps> = ({
   schedules,
+  vendors,
   onScheduleMove,
   isLoading = false,
   viewMode = 'month',
 }) => {
-  const [hoveredSchedule, setHoveredSchedule] = useState<string | null>(null);
-  const [draggingSchedule, setDraggingSchedule] = useState<string | null>(null);
-  const [dragStartX, setDragStartX] = useState<number>(0);
-  const [dragOffset, setDragOffset] = useState<number>(0);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [expandedVendors, setExpandedVendors] = useState<Set<string>>(new Set());
+  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
 
-  const { dateRange, dates, cellWidth } = useMemo(() => {
+  const { dates, cellWidth } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -75,80 +113,100 @@ export const ProductionGantt: React.FC<ProductionGanttProps> = ({
     }
     
     return {
-      dateRange: { start: startDate, end: endDate },
       dates,
-      cellWidth: viewMode === 'week' ? 60 : 40,
+      cellWidth: viewMode === 'week' ? 80 : 56,
     };
   }, [viewMode]);
 
   const todayIndex = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return dates.findIndex(d => d.getTime() === today.getTime());
+    return dates.findIndex(d => isSameDay(d, today));
   }, [dates]);
 
-  const getBarPosition = useCallback((schedule: ProductionScheduleWithDetails) => {
-    const startDate = parseDate(schedule.start_date);
-    const endDate = parseDate(schedule.end_date);
+  const vendorGroups = useMemo(() => {
+    const groups: Record<string, { vendorId: string; vendorName: string; schedules: ProductionScheduleWithDetails[]; lineCount: number }> = {};
     
-    const startDiff = getDaysDiff(dateRange.start, startDate);
-    const duration = getDaysDiff(startDate, endDate) + 1;
+    const filteredVendors = vendors.filter(v => GANTT_VENDOR_NAMES.includes(v.name));
     
-    return {
-      left: startDiff * cellWidth,
-      width: duration * cellWidth - 4,
-    };
-  }, [dateRange.start, cellWidth]);
+    filteredVendors.forEach(vendor => {
+      groups[vendor.id] = {
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        schedules: [],
+        lineCount: vendor.line_count || 1,
+      };
+    });
+    
+    schedules.forEach(schedule => {
+      const vendorId = schedule.vendor_id;
+      if (groups[vendorId]) {
+        groups[vendorId].schedules.push(schedule);
+      }
+    });
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, scheduleId: string) => {
-    e.preventDefault();
-    setDraggingSchedule(scheduleId);
-    setDragStartX(e.clientX);
-    setDragOffset(0);
+    return GANTT_VENDOR_NAMES
+      .map(name => Object.values(groups).find(g => g.vendorName === name))
+      .filter((g): g is NonNullable<typeof g> => g !== undefined);
+  }, [schedules, vendors]);
+
+  const vendorLines = useMemo((): VendorLine[] => {
+    const lines: VendorLine[] = [];
+    
+    vendorGroups.forEach(group => {
+      const lineCount = Math.max(group.lineCount, 1);
+      for (let i = 1; i <= lineCount; i++) {
+        lines.push({
+          vendorId: group.vendorId,
+          vendorName: group.vendorName,
+          lineNumber: i,
+          key: `${group.vendorId}-${i}`,
+        });
+      }
+    });
+    
+    return lines;
+  }, [vendorGroups]);
+
+  const getScheduleForCell = useCallback((vendorId: string, lineNumber: number, date: Date): CellSchedule | null => {
+    const group = vendorGroups.find(g => g.vendorId === vendorId);
+    if (!group) return null;
+
+    const lineSchedules = group.schedules.filter((_, idx) => (idx % group.lineCount) + 1 === lineNumber);
+    
+    for (const schedule of lineSchedules) {
+      if (isDateInRange(date, schedule.start_date, schedule.end_date)) {
+        const startDate = parseDate(schedule.start_date);
+        const endDate = parseDate(schedule.end_date);
+        const isStart = isSameDay(date, startDate);
+        const isEnd = isSameDay(date, endDate);
+        const spanDays = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        return { schedule, isStart, isEnd, spanDays };
+      }
+    }
+    return null;
+  }, [vendorGroups]);
+
+  const toggleVendor = useCallback((vendorId: string) => {
+    setExpandedVendors(prev => {
+      const next = new Set(prev);
+      if (next.has(vendorId)) {
+        next.delete(vendorId);
+      } else {
+        next.add(vendorId);
+      }
+      return next;
+    });
   }, []);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!draggingSchedule) return;
-    const diff = e.clientX - dragStartX;
-    setDragOffset(diff);
-  }, [draggingSchedule, dragStartX]);
+  const expandAll = useCallback(() => {
+    setExpandedVendors(new Set(vendorGroups.map(g => g.vendorId)));
+  }, [vendorGroups]);
 
-  const handleMouseUp = useCallback(async () => {
-    if (!draggingSchedule) return;
-    
-    const schedule = schedules.find(s => s.id === draggingSchedule);
-    if (!schedule) {
-      setDraggingSchedule(null);
-      setDragOffset(0);
-      return;
-    }
-    
-    const daysMoved = Math.round(dragOffset / cellWidth);
-    
-    if (daysMoved !== 0) {
-      const startDate = parseDate(schedule.start_date);
-      const endDate = parseDate(schedule.end_date);
-      
-      const newStartDate = addDays(startDate, daysMoved);
-      const newEndDate = addDays(endDate, daysMoved);
-      
-      await onScheduleMove(
-        draggingSchedule,
-        formatDate(newStartDate),
-        formatDate(newEndDate)
-      );
-    }
-    
-    setDraggingSchedule(null);
-    setDragOffset(0);
-  }, [draggingSchedule, dragOffset, cellWidth, schedules, onScheduleMove]);
-
-  const handleMouseLeave = useCallback(() => {
-    if (draggingSchedule) {
-      setDraggingSchedule(null);
-      setDragOffset(0);
-    }
-  }, [draggingSchedule]);
+  const collapseAll = useCallback(() => {
+    setExpandedVendors(new Set());
+  }, []);
 
   if (isLoading) {
     return (
@@ -173,40 +231,46 @@ export const ProductionGantt: React.FC<ProductionGanttProps> = ({
   }
 
   return (
-    <div 
-      ref={containerRef}
-      className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-    >
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-800">생산계획표</h3>
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-blue-400" />
-            <span className="text-slate-600">계획</span>
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="text-base font-bold text-slate-800">외주 생산계획표</h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {formatDate(dates[0])} ~ {formatDate(dates[dates.length - 1])}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button onClick={expandAll} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+              전체 펼치기
+            </button>
+            <span className="text-slate-300">|</span>
+            <button onClick={collapseAll} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+              전체 접기
+            </button>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-amber-400" />
-            <span className="text-slate-600">진행중</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-emerald-400" />
-            <span className="text-slate-600">완료</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-red-400" />
-            <span className="text-slate-600">지연</span>
+          <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-blue-200 border border-blue-300" />
+              <span className="text-slate-600">계획</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-amber-200 border border-amber-300" />
+              <span className="text-slate-600">진행중</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-emerald-200 border border-emerald-300" />
+              <span className="text-slate-600">완료</span>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <div className="min-w-max">
-          <div className="flex border-b border-slate-200 bg-slate-50">
-            <div className="w-48 flex-shrink-0 px-4 py-2 font-medium text-slate-600 text-sm border-r border-slate-200">
-              제품명
+          <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-10">
+            <div className="w-36 flex-shrink-0 px-3 py-2 font-medium text-slate-600 text-xs border-r border-slate-200">
+              외주처 / 라인
             </div>
             <div className="flex">
               {dates.map((date, index) => (
@@ -214,14 +278,14 @@ export const ProductionGantt: React.FC<ProductionGanttProps> = ({
                   key={index}
                   className={`text-center border-r border-slate-100 ${
                     isWeekend(date) ? 'bg-slate-100' : ''
-                  }`}
+                  } ${todayIndex === index ? 'bg-red-50' : ''}`}
                   style={{ width: cellWidth }}
                 >
-                  <div className="text-xs text-slate-500 py-1">
+                  <div className={`text-xs py-1 ${todayIndex === index ? 'text-red-600 font-bold' : 'text-slate-500'}`}>
                     {formatDisplayDate(date)}
                   </div>
                   <div className={`text-xs pb-1 ${
-                    isWeekend(date) ? 'text-red-400' : 'text-slate-400'
+                    isWeekend(date) ? 'text-red-400' : todayIndex === index ? 'text-red-500 font-bold' : 'text-slate-400'
                   }`}>
                     {getWeekday(date)}
                   </div>
@@ -231,96 +295,115 @@ export const ProductionGantt: React.FC<ProductionGanttProps> = ({
           </div>
 
           <div className="relative">
-            {todayIndex >= 0 && (
-              <div
-                className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-                style={{ left: `${192 + todayIndex * cellWidth + cellWidth / 2}px` }}
-              >
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-red-500 rounded-full" />
-              </div>
-            )}
-
-            {schedules.map((schedule) => {
-              const position = getBarPosition(schedule);
-              const isDragging = draggingSchedule === schedule.id;
-              const statusColors = STATUS_COLORS[schedule.status] || STATUS_COLORS.planned;
-              const deliveryDate = schedule.order?.delivery_date ? parseDate(schedule.order.delivery_date) : null;
-              const deliveryDayIndex = deliveryDate ? getDaysDiff(dateRange.start, deliveryDate) : null;
+            {vendorGroups.map((group) => {
+              const isExpanded = expandedVendors.has(group.vendorId);
+              const vendorColor = VENDOR_COLORS[group.vendorName] || 'bg-slate-500';
+              const lines = vendorLines.filter(l => l.vendorId === group.vendorId);
 
               return (
-                <div
-                  key={schedule.id}
-                  className="flex border-b border-slate-100 hover:bg-slate-50 transition-colors"
-                  style={{ height: 48 }}
-                >
-                  <div className="w-48 flex-shrink-0 px-4 flex items-center border-r border-slate-200">
-                    <div className="truncate">
-                      <div className="text-sm font-medium text-slate-800 truncate">
-                        {schedule.order?.product_name || '제품명 없음'}
-                      </div>
-                      <div className="text-xs text-slate-400 truncate">
-                        {schedule.vendor?.name || '외주처 없음'}
-                      </div>
+                <div key={group.vendorId}>
+                  <div
+                    onClick={() => toggleVendor(group.vendorId)}
+                    className="flex border-b border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors"
+                    style={{ height: 40 }}
+                  >
+                    <div className="w-36 flex-shrink-0 px-3 flex items-center border-r border-slate-200 gap-2">
+                      <div className={`w-1 h-6 rounded-full ${vendorColor}`} />
+                      <svg
+                        className={`w-3 h-3 text-slate-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span className="font-semibold text-slate-800 text-sm truncate">{group.vendorName}</span>
+                      <span className="text-xs text-slate-400 flex-shrink-0">({group.schedules.length})</span>
+                    </div>
+                    <div className="flex-1 flex">
+                      {dates.map((date, index) => (
+                        <div
+                          key={index}
+                          className={`border-r border-slate-100 ${isWeekend(date) ? 'bg-slate-100/50' : ''}`}
+                          style={{ width: cellWidth }}
+                        />
+                      ))}
                     </div>
                   </div>
 
-                  <div className="flex-1 relative">
-                    {dates.map((date, index) => (
-                      <div
-                        key={index}
-                        className={`absolute top-0 bottom-0 border-r border-slate-100 ${
-                          isWeekend(date) ? 'bg-slate-50' : ''
-                        }`}
-                        style={{ left: index * cellWidth, width: cellWidth }}
-                      />
-                    ))}
-
-                    {deliveryDayIndex !== null && deliveryDayIndex >= 0 && deliveryDayIndex < dates.length && (
-                      <div
-                        className="absolute top-1 bottom-1 w-0.5 bg-orange-400 z-5"
-                        style={{ left: deliveryDayIndex * cellWidth + cellWidth / 2 }}
-                      >
-                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-orange-400" />
-                      </div>
-                    )}
-
+                  {isExpanded && lines.map((line) => (
                     <div
-                      className={`absolute top-2 h-8 rounded-lg border-2 cursor-move transition-shadow ${
-                        statusColors.bg
-                      } ${statusColors.border} ${
-                        isDragging ? 'shadow-lg opacity-80' : 'hover:shadow-md'
-                      }`}
-                      style={{
-                        left: position.left + (isDragging ? dragOffset : 0),
-                        width: position.width,
-                      }}
-                      onMouseDown={(e) => handleMouseDown(e, schedule.id)}
-                      onMouseEnter={() => setHoveredSchedule(schedule.id)}
-                      onMouseLeave={() => setHoveredSchedule(null)}
+                      key={line.key}
+                      className="flex border-b border-slate-100 hover:bg-blue-50/20 transition-colors"
+                      style={{ height: 44 }}
                     >
-                      <div className={`px-2 py-1 text-xs font-medium truncate ${statusColors.text}`}>
-                        {schedule.order?.quantity?.toLocaleString() || 0}개
+                      <div className="w-36 flex-shrink-0 px-3 pl-8 flex items-center border-r border-slate-200">
+                        <span className="text-xs text-slate-500">Line {line.lineNumber}</span>
                       </div>
+                      <div className="flex-1 flex">
+                        {dates.map((date, dateIndex) => {
+                          const cellData = getScheduleForCell(line.vendorId, line.lineNumber, date);
+                          const cellKey = `${line.key}-${dateIndex}`;
+                          const isHovered = hoveredCell === cellKey;
 
-                      {hoveredSchedule === schedule.id && !isDragging && (
-                        <div className="absolute bottom-full left-0 mb-2 z-20 pointer-events-none">
-                          <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-xl whitespace-nowrap">
-                            <div className="font-medium mb-1">{schedule.order?.product_name}</div>
-                            <div className="text-slate-300 space-y-0.5">
-                              <div>수량: {schedule.order?.quantity?.toLocaleString()}개</div>
-                              <div>외주처: {schedule.vendor?.name}</div>
-                              <div>시작일: {schedule.start_date}</div>
-                              <div>종료일: {schedule.end_date}</div>
-                              {schedule.order?.delivery_date && (
-                                <div className="text-orange-300">납기일: {schedule.order.delivery_date}</div>
+                          return (
+                            <div
+                              key={dateIndex}
+                              className={`border-r border-slate-100 relative ${isWeekend(date) ? 'bg-slate-50' : ''}`}
+                              style={{ width: cellWidth }}
+                              onMouseEnter={() => setHoveredCell(cellKey)}
+                              onMouseLeave={() => setHoveredCell(null)}
+                            >
+                              {cellData && cellData.isStart && (
+                                <div
+                                  className={`absolute inset-y-1 left-0.5 right-0.5 rounded px-1 py-0.5 text-xs font-medium truncate border ${
+                                    STATUS_COLORS[cellData.schedule.status] || STATUS_COLORS.planned
+                                  }`}
+                                >
+                                  <div className="truncate leading-tight">
+                                    {cellData.schedule.order?.product_name || '-'}
+                                  </div>
+                                  <div className="text-[10px] opacity-70 truncate">
+                                    {Math.ceil((cellData.schedule.order?.quantity || 0) / cellData.spanDays).toLocaleString()}개/일
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {cellData && !cellData.isStart && (
+                                <div
+                                  className={`absolute inset-y-1 left-0 right-0.5 rounded-r px-1 py-0.5 text-xs truncate border-y border-r ${
+                                    STATUS_COLORS[cellData.schedule.status] || STATUS_COLORS.planned
+                                  }`}
+                                >
+                                  <div className="truncate leading-tight opacity-70">
+                                    (연속)
+                                  </div>
+                                  <div className="text-[10px] opacity-70 truncate">
+                                    {Math.ceil((cellData.schedule.order?.quantity || 0) / cellData.spanDays).toLocaleString()}개
+                                  </div>
+                                </div>
+                              )}
+
+                              {isHovered && cellData && (
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 pointer-events-none">
+                                  <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-xl whitespace-nowrap">
+                                    <div className="font-medium mb-1">{cellData.schedule.order?.product_name}</div>
+                                    <div className="text-slate-300 space-y-0.5">
+                                      <div>수량: {cellData.schedule.order?.quantity?.toLocaleString()}개</div>
+                                      {cellData.schedule.order?.delivery_date && (
+                                        <div className="text-orange-300">납기: {cellData.schedule.order.delivery_date}</div>
+                                      )}
+                                    </div>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-slate-800" />
+                                  </div>
+                                </div>
                               )}
                             </div>
-                            <div className="absolute top-full left-4 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-slate-800" />
-                          </div>
-                        </div>
-                      )}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               );
             })}
