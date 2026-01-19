@@ -30,6 +30,8 @@ export interface Vendor {
   code: string;
   contact_email: string | null;
   is_active: boolean;
+  daily_capacity: number;
+  line_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -68,6 +70,23 @@ export interface FileUpload {
   created_at: string;
 }
 
+export type ProductionStatus = 'planned' | 'in_progress' | 'completed' | 'delayed';
+
+export interface ProductionSchedule {
+  id: string;
+  order_id: string;
+  vendor_id: string;
+  start_date: string;
+  end_date: string;
+  transfer_date: string | null;
+  earliest_production_date: string | null;
+  status: ProductionStatus;
+  is_manually_adjusted: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================
 // Join 타입 (관계 포함)
 // ============================================
@@ -82,6 +101,16 @@ export interface VendorTargetWithVendor extends VendorTarget {
 
 export interface FileUploadWithUser extends FileUpload {
   user: Pick<User, 'name' | 'email'>;
+}
+
+export interface ProductionScheduleWithDetails extends ProductionSchedule {
+  order: Pick<Order, 'product_name' | 'product_code' | 'quantity' | 'delivery_date' | 'order_date'>;
+  vendor: Pick<Vendor, 'name' | 'code' | 'daily_capacity' | 'line_count'>;
+}
+
+export interface OrderWithSchedule extends Order {
+  vendor: Pick<Vendor, 'name' | 'code' | 'daily_capacity' | 'line_count'>;
+  schedule: ProductionSchedule | null;
 }
 
 // ============================================
@@ -127,6 +156,16 @@ export type VendorTargetInsert = Omit<VendorTarget, 'id' | 'created_at'> & {
 export type FileUploadInsert = Omit<FileUpload, 'id' | 'created_at'> & {
   id?: string;
   created_at?: string;
+};
+
+export type ProductionScheduleInsert = Omit<ProductionSchedule, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ProductionScheduleUpdate = Partial<Omit<ProductionSchedule, 'id' | 'order_id' | 'created_at'>> & {
+  updated_at?: string;
 };
 
 // ============================================
@@ -176,15 +215,24 @@ export interface Database {
         Update: Partial<FileUpload>;
         Relationships: [];
       };
+      production_schedules: {
+        Row: ProductionSchedule;
+        Insert: ProductionScheduleInsert;
+        Update: ProductionScheduleUpdate;
+        Relationships: [];
+      };
     };
     Views: {
-      [_ in never]: never;
+      orders_with_schedule: {
+        Row: OrderWithSchedule;
+      };
     };
     Functions: {
       [_ in never]: never;
     };
     Enums: {
       user_role: UserRole;
+      production_status: ProductionStatus;
     };
     CompositeTypes: {
       [_ in never]: never;

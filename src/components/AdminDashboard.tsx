@@ -4,14 +4,16 @@
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import type { User as DbUser, OrderInsert, Vendor, FileUploadWithUser } from '@/types/database';
+import type { User as DbUser, OrderInsert, Vendor, FileUploadWithUser, Order } from '@/types/database';
 import { User } from '@/types';
 import { useOrders } from '@/hooks/useOrders';
 import { useVendors, useVendorTargets } from '@/hooks/useVendors';
+import { useProductionSchedules } from '@/hooks/useProductionSchedules';
 import { createFileUpload, getFileUploads } from '@/services/fileUploadService';
 import { FileUpload } from '@/components/FileUpload';
 import { VendorCard } from '@/components/VendorCard';
 import { UserManagement } from '@/components/UserManagement';
+import { ProductionGantt } from '@/components/ProductionGantt';
 
 interface AdminDashboardProps {
   user: User;
@@ -20,7 +22,7 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabType = 'input' | 'list' | 'report' | 'users';
+type TabType = 'input' | 'list' | 'schedule' | 'report' | 'users';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   user,
@@ -33,9 +35,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [fileUploads, setFileUploads] = useState<FileUploadWithUser[]>([]);
   const [fileUploadsLoading, setFileUploadsLoading] = useState(false);
 
-  // Supabase 훅
   const { orders, isLoading: ordersLoading, error: ordersError, addOrders, removeAllOrders, refetch: refetchOrders } = useOrders();
   const { vendors, isLoading: vendorsLoading, error: vendorsError } = useVendors();
+  const { 
+    schedules, 
+    isLoading: schedulesLoading, 
+    moveSchedule, 
+    generateSchedules,
+    refetch: refetchSchedules 
+  } = useProductionSchedules();
 
   // 리포트용 목표 데이터
   const currentYear = new Date().getFullYear();
@@ -85,7 +93,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     showNotification(`${ordersToInsert.length}건의 발주가 등록되었습니다.`);
     setActiveTab('list');
-  }, [addOrders, dbUser.id, showNotification]);
+    
+    setTimeout(async () => {
+      await refetchOrders();
+      const { data: latestOrders } = await import('@/services/orderService').then(m => m.getOrders());
+      if (latestOrders && latestOrders.length > 0 && vendors.length > 0) {
+        const ordersForSchedule = latestOrders.filter(o => 
+          !schedules.some(s => s.order_id === o.id)
+        ) as Order[];
+        if (ordersForSchedule.length > 0) {
+          await generateSchedules(ordersForSchedule, vendors);
+        }
+      }
+    }, 500);
+  }, [addOrders, dbUser.id, showNotification, refetchOrders, vendors, schedules, generateSchedules]);
 
   // 파일 업로드 이력 불러오기
   const loadFileUploads = useCallback(async () => {
@@ -230,6 +251,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         >
           목록 ({vendorGroups.length})
           {activeTab === 'list' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
+        </button>
+        <button
+          onClick={() => setActiveTab('schedule')}
+          className={`flex-1 min-w-fit pb-3 px-2 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${
+            activeTab === 'schedule' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          생산계획
+          {activeTab === 'schedule' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
         </button>
         <button
           onClick={() => setActiveTab('report')}
@@ -384,6 +414,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* 생산계획표 탭 */}
+        {activeTab === 'schedule' && !isLoading && !ordersError && (
+          <div className="space-y-4">
+            <ProductionGantt
+              schedules={schedules}
+              onScheduleMove={async (scheduleId, newStartDate, newEndDate) => {
+                await moveSchedule(scheduleId, newStartDate, newEndDate);
+                showNotification('생산계획이 변경되었습니다.');
+              }}
+              isLoading={schedulesLoading}
+            />
           </div>
         )}
 

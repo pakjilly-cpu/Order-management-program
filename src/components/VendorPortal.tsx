@@ -6,6 +6,8 @@
 import React, { useMemo, useState } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { useVendorTargets } from '@/hooks/useVendors';
+import { useProductionSchedules } from '@/hooks/useProductionSchedules';
+import { ProductionGantt } from '@/components/ProductionGantt';
 import type { OrderWithVendor } from '@/types/database';
 
 interface VendorPortalProps {
@@ -84,14 +86,18 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
   onBack,
   onLogout
 }) => {
-  const [activeTab, setActiveTab] = useState<'list' | 'report'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'schedule' | 'report'>('list');
   
   // 정렬 상태
   const [sortKey, setSortKey] = useState<SortKey>('order_date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
-  // Supabase에서 해당 외주처의 주문만 조회
   const { orders, isLoading, error, toggleComplete, refetch } = useOrders({ vendorId });
+  const { 
+    schedules, 
+    isLoading: schedulesLoading, 
+    moveSchedule 
+  } = useProductionSchedules({ vendorId });
 
   // 목표 데이터 조회
   const currentYear = new Date().getFullYear();
@@ -316,6 +322,15 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
                 {activeTab === 'list' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
               </button>
               <button
+                onClick={() => setActiveTab('schedule')}
+                className={`flex-1 pb-2 text-sm font-medium transition-colors relative ${
+                  activeTab === 'schedule' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                생산계획
+                {activeTab === 'schedule' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
+              </button>
+              <button
                 onClick={() => setActiveTab('report')}
                 className={`flex-1 pb-2 text-sm font-medium transition-colors relative ${
                   activeTab === 'report' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
@@ -349,6 +364,19 @@ export const VendorPortal: React.FC<VendorPortalProps> = ({
             >
               다시 시도
             </button>
+          </div>
+        )}
+
+        {/* 생산계획표 탭 */}
+        {activeTab === 'schedule' && isVendorMode && !isLoading && !error && (
+          <div className="space-y-4">
+            <ProductionGantt
+              schedules={schedules}
+              onScheduleMove={async (scheduleId, newStartDate, newEndDate) => {
+                await moveSchedule(scheduleId, newStartDate, newEndDate);
+              }}
+              isLoading={schedulesLoading}
+            />
           </div>
         )}
 
