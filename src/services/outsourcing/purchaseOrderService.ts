@@ -35,17 +35,8 @@ export const getPurchaseOrders = async (
     if (filters?.dateTo) {
       query = query.lte('order_date', filters.dateTo);
     }
-    if (filters?.status) {
-      query = query.eq('po_status', filters.status);
-    }
     if (filters?.productSearch) {
       query = query.or(`product_name.ilike.%${filters.productSearch}%,product_code.ilike.%${filters.productSearch}%`);
-    }
-    if (filters?.poNumber) {
-      query = query.ilike('po_number', `%${filters.poNumber}%`);
-    }
-    if (filters?.excludeCompleted) {
-      query = query.eq('is_delivery_completed', false);
     }
 
     const { data, error } = await query;

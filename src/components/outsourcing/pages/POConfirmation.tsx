@@ -94,26 +94,32 @@ export const POConfirmation: React.FC<Props> = ({ vendorId, vendorCode }) => {
   ];
 
   const columns: Column<OrderWithVendor>[] = [
-    { key: 'po_status', label: '상태', width: '60px', render: (row) => (
-      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[row.po_status]}`}>
-        {statusLabels[row.po_status]}
-      </span>
-    )},
-    { key: 'po_number', label: 'PO번호', width: '100px', sortable: true },
+    { key: 'po_status', label: '상태', width: '60px', render: (row) => {
+      const st = row.po_status ?? 'pending';
+      return (
+        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[st] ?? ''}`}>
+          {statusLabels[st] ?? st}
+        </span>
+      );
+    }},
+    { key: 'po_number', label: 'PO번호', width: '100px', sortable: true, render: (row) => row.po_number ?? '-' },
     { key: 'product_code', label: '품목코드', width: '100px', sortable: true },
     { key: 'product_name', label: '품목명', width: '200px', sortable: true },
     { key: 'order_date', label: '발주일', width: '100px', sortable: true },
-    { key: 'quantity', label: '수량', width: '80px', align: 'right', sortable: true, render: (row) => row.quantity.toLocaleString() },
-    { key: 'unit', label: '단위', width: '50px', align: 'center' },
-    { key: 'delivery_date', label: '납기요청일', width: '100px', sortable: true },
-    { key: 'received_quantity', label: '기입고수량', width: '80px', align: 'right', render: (row) => row.received_quantity.toLocaleString() },
-    { key: 'remaining_quantity', label: '미입고수량', width: '80px', align: 'right', render: (row) => row.remaining_quantity.toLocaleString() },
-    { key: 'warehouse', label: '납품창고', width: '80px' },
-    { key: 'approval_status', label: '승인', width: '60px', align: 'center', render: (row) => (
-      <span className={`text-[10px] font-medium ${row.approval_status === 'approved' ? 'text-emerald-600' : row.approval_status === 'rejected' ? 'text-red-600' : 'text-slate-400'}`}>
-        {approvalLabels[row.approval_status]}
-      </span>
-    )},
+    { key: 'quantity', label: '수량', width: '80px', align: 'right', sortable: true, render: (row) => (row.quantity ?? 0).toLocaleString() },
+    { key: 'unit', label: '단위', width: '50px', align: 'center', render: (row) => row.unit ?? 'EA' },
+    { key: 'delivery_date', label: '납기요청일', width: '100px', sortable: true, render: (row) => row.delivery_date ?? '-' },
+    { key: 'received_quantity', label: '기입고수량', width: '80px', align: 'right', render: (row) => (row.received_quantity ?? 0).toLocaleString() },
+    { key: 'remaining_quantity', label: '미입고수량', width: '80px', align: 'right', render: (row) => (row.remaining_quantity ?? 0).toLocaleString() },
+    { key: 'warehouse', label: '납품창고', width: '80px', render: (row) => row.warehouse ?? '-' },
+    { key: 'approval_status', label: '승인', width: '60px', align: 'center', render: (row) => {
+      const as_ = row.approval_status ?? 'pending';
+      return (
+        <span className={`text-[10px] font-medium ${as_ === 'approved' ? 'text-emerald-600' : as_ === 'rejected' ? 'text-red-600' : 'text-slate-400'}`}>
+          {approvalLabels[as_] ?? as_}
+        </span>
+      );
+    }},
   ];
 
   return (
