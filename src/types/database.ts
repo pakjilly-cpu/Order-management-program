@@ -71,6 +71,10 @@ export interface FileUpload {
 }
 
 export type ProductionStatus = 'planned' | 'in_progress' | 'completed' | 'delayed';
+export type PurchaseOrderStatus = 'pending' | 'confirmed' | 'changed' | 'completed' | 'cancelled';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+export type BomStatus = 'pending' | 'received' | 'partial' | 'shortage';
+export type DeliveryProgressStatus = 'pending' | 'in_progress' | 'completed' | 'rejected';
 
 export interface ProductionSchedule {
   id: string;
@@ -83,6 +87,135 @@ export interface ProductionSchedule {
   status: ProductionStatus;
   is_manually_adjusted: boolean;
   notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  vendor_id: string;
+  po_number: string;
+  item_number: string | null;
+  product_code: string | null;
+  product_name: string;
+  po_date: string;
+  po_quantity: number;
+  unit: string;
+  unit_price: number;
+  currency: string;
+  price_unit: number;
+  request_date: string | null;
+  received_quantity: number;
+  remaining_quantity: number;
+  warehouse: string | null;
+  cosmax_comment: string | null;
+  customer_code: string | null;
+  status: PurchaseOrderStatus;
+  is_delivery_completed: boolean;
+  packaging_image_url: string | null;
+  product_image_url: string | null;
+  approval_status: ApprovalStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BomItem {
+  id: string;
+  purchase_order_id: string | null;
+  vendor_id: string;
+  manager_name: string | null;
+  instruction_date: string | null;
+  supplier_code: string | null;
+  supplier_name: string | null;
+  purchase_document: string | null;
+  parent_material_code: string | null;
+  parent_material_name: string | null;
+  purchase_quantity: number;
+  purchase_unit: string;
+  status: BomStatus;
+  child_material_code: string | null;
+  child_material_name: string | null;
+  required_quantity: number;
+  required_unit: string;
+  vendor_stock: number;
+  shortage_quantity: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeliveryNote {
+  id: string;
+  vendor_id: string;
+  delivery_number: string | null;
+  delivery_date: string;
+  is_completed: boolean;
+  warehouse: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeliveryItem {
+  id: string;
+  delivery_note_id: string;
+  purchase_order_id: string | null;
+  customer_code: string | null;
+  product_code: string | null;
+  product_name: string;
+  po_number: string | null;
+  po_item_number: string | null;
+  po_quantity: number;
+  previously_received: number;
+  delivery_allowed: number;
+  cosmax_comment: string | null;
+  progress_status: DeliveryProgressStatus;
+  pallet_count: number;
+  items_per_box: number;
+  box_count: number;
+  remainder: number;
+  production_date: string | null;
+  lot_number: string | null;
+  received_quantity: number;
+  managed_product: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialSettlement {
+  id: string;
+  vendor_id: string;
+  delivery_note_id: string | null;
+  po_number: string | null;
+  po_item_number: string | null;
+  product_code: string | null;
+  product_name: string | null;
+  material_code: string | null;
+  material_name: string | null;
+  lot_number: string | null;
+  original_quantity: number;
+  normal_usage: number;
+  damaged_usage: number;
+  remaining_stock: number;
+  is_registered: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialReturn {
+  id: string;
+  vendor_id: string;
+  material_code: string;
+  material_name: string | null;
+  stock_quantity: number;
+  lot_number: string | null;
+  settlement_return: number;
+  warehouse: string | null;
+  notes: string | null;
+  bulk_ratio: number | null;
+  is_return_target: boolean;
+  manufacture_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -111,6 +244,30 @@ export interface ProductionScheduleWithDetails extends ProductionSchedule {
 export interface OrderWithSchedule extends Order {
   vendor: Pick<Vendor, 'name' | 'code' | 'daily_capacity' | 'line_count'>;
   schedule: ProductionSchedule | null;
+}
+
+export interface PurchaseOrderWithVendor extends PurchaseOrder {
+  vendor: Pick<Vendor, 'name' | 'code'>;
+}
+
+export interface BomItemWithVendor extends BomItem {
+  vendor: Pick<Vendor, 'name' | 'code'>;
+}
+
+export interface DeliveryNoteWithVendor extends DeliveryNote {
+  vendor: Pick<Vendor, 'name' | 'code'>;
+}
+
+export interface DeliveryItemWithNote extends DeliveryItem {
+  delivery_note: Pick<DeliveryNote, 'delivery_number' | 'delivery_date' | 'is_completed'>;
+}
+
+export interface MaterialSettlementWithVendor extends MaterialSettlement {
+  vendor: Pick<Vendor, 'name' | 'code'>;
+}
+
+export interface MaterialReturnWithVendor extends MaterialReturn {
+  vendor: Pick<Vendor, 'name' | 'code'>;
 }
 
 // ============================================
@@ -168,6 +325,66 @@ export type ProductionScheduleUpdate = Partial<Omit<ProductionSchedule, 'id' | '
   updated_at?: string;
 };
 
+export type PurchaseOrderInsert = Omit<PurchaseOrder, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PurchaseOrderUpdate = Partial<Omit<PurchaseOrder, 'id' | 'created_at'>> & {
+  updated_at?: string;
+};
+
+export type BomItemInsert = Omit<BomItem, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type BomItemUpdate = Partial<Omit<BomItem, 'id' | 'created_at'>> & {
+  updated_at?: string;
+};
+
+export type DeliveryNoteInsert = Omit<DeliveryNote, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type DeliveryNoteUpdate = Partial<Omit<DeliveryNote, 'id' | 'created_at'>> & {
+  updated_at?: string;
+};
+
+export type DeliveryItemInsert = Omit<DeliveryItem, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type DeliveryItemUpdate = Partial<Omit<DeliveryItem, 'id' | 'created_at'>> & {
+  updated_at?: string;
+};
+
+export type MaterialSettlementInsert = Omit<MaterialSettlement, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type MaterialSettlementUpdate = Partial<Omit<MaterialSettlement, 'id' | 'created_at'>> & {
+  updated_at?: string;
+};
+
+export type MaterialReturnInsert = Omit<MaterialReturn, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type MaterialReturnUpdate = Partial<Omit<MaterialReturn, 'id' | 'created_at'>> & {
+  updated_at?: string;
+};
+
 // ============================================
 // Supabase Database 타입 (supabase-js 클라이언트용)
 // 참고: Supabase CLI로 자동 생성된 타입을 사용하는 것이 권장됩니다.
@@ -221,6 +438,42 @@ export interface Database {
         Update: ProductionScheduleUpdate;
         Relationships: [];
       };
+      purchase_orders: {
+        Row: PurchaseOrder;
+        Insert: PurchaseOrderInsert;
+        Update: PurchaseOrderUpdate;
+        Relationships: [];
+      };
+      bom_items: {
+        Row: BomItem;
+        Insert: BomItemInsert;
+        Update: BomItemUpdate;
+        Relationships: [];
+      };
+      delivery_notes: {
+        Row: DeliveryNote;
+        Insert: DeliveryNoteInsert;
+        Update: DeliveryNoteUpdate;
+        Relationships: [];
+      };
+      delivery_items: {
+        Row: DeliveryItem;
+        Insert: DeliveryItemInsert;
+        Update: DeliveryItemUpdate;
+        Relationships: [];
+      };
+      material_settlements: {
+        Row: MaterialSettlement;
+        Insert: MaterialSettlementInsert;
+        Update: MaterialSettlementUpdate;
+        Relationships: [];
+      };
+      material_returns: {
+        Row: MaterialReturn;
+        Insert: MaterialReturnInsert;
+        Update: MaterialReturnUpdate;
+        Relationships: [];
+      };
     };
     Views: {
       orders_with_schedule: {
@@ -233,6 +486,10 @@ export interface Database {
     Enums: {
       user_role: UserRole;
       production_status: ProductionStatus;
+      purchase_order_status: PurchaseOrderStatus;
+      approval_status: ApprovalStatus;
+      bom_status: BomStatus;
+      delivery_progress_status: DeliveryProgressStatus;
     };
     CompositeTypes: {
       [_ in never]: never;

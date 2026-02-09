@@ -14,6 +14,7 @@ import { FileUpload } from '@/components/FileUpload';
 import { VendorCard } from '@/components/VendorCard';
 import { UserManagement } from '@/components/UserManagement';
 import { ProductionGantt } from '@/components/ProductionGantt';
+import { OutsourcingLayout } from '@/components/outsourcing/OutsourcingLayout';
 
 interface AdminDashboardProps {
   user: User;
@@ -22,7 +23,7 @@ interface AdminDashboardProps {
   onLogout: () => void;
 }
 
-type TabType = 'input' | 'list' | 'schedule' | 'report' | 'users';
+type TabType = 'input' | 'list' | 'schedule' | 'report' | 'users' | 'outsourcing';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   user,
@@ -206,6 +207,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // admin 여부 확인
   const isAdmin = dbUser.role === 'admin';
 
+  if (activeTab === 'outsourcing') {
+    return (
+      <OutsourcingLayout
+        onBack={() => setActiveTab('input')}
+      />
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto w-full pb-20">
       {/* 헤더 */}
@@ -281,6 +290,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {activeTab === 'users' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
           </button>
         )}
+        <button
+          onClick={() => setActiveTab('outsourcing')}
+          className={`flex-1 min-w-fit pb-3 px-2 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${
+            activeTab === 'outsourcing' ? 'text-[#8B1A1A]' : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          외주임가공
+          {activeTab === 'outsourcing' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#8B1A1A] rounded-t-full" />}
+        </button>
       </div>
 
       {/* 알림 */}
