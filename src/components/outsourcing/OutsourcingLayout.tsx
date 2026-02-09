@@ -1,11 +1,33 @@
 import React, { useState } from 'react';
-import { OutsourcingSidebar, OutsourcingMenuId } from './shared/OutsourcingSidebar';
 import { POConfirmation } from './pages/POConfirmation';
 import { BOMStatus } from './pages/BOMStatus';
 import { DeliveryCreate } from './pages/DeliveryCreate';
 import { DeliveryPrint } from './pages/DeliveryPrint';
 import { MaterialSettlement } from './pages/MaterialSettlement';
 import { MaterialReturn } from './pages/MaterialReturn';
+
+export type OutsourcingMenuId =
+  | 'po-confirmation'
+  | 'bom-status'
+  | 'delivery-create'
+  | 'delivery-print'
+  | 'material-settlement'
+  | 'material-return';
+
+interface MenuItem {
+  id: OutsourcingMenuId;
+  label: string;
+  shortLabel: string;
+}
+
+const MENU_ITEMS: MenuItem[] = [
+  { id: 'po-confirmation', label: '발주서확인 및 변경요청', shortLabel: '발주서' },
+  { id: 'bom-status', label: 'BOM 입고현황', shortLabel: 'BOM' },
+  { id: 'delivery-create', label: '납품서 작성', shortLabel: '납품작성' },
+  { id: 'delivery-print', label: '납품서 출력', shortLabel: '납품출력' },
+  { id: 'material-settlement', label: '자재정산', shortLabel: '자재정산' },
+  { id: 'material-return', label: '자재환입', shortLabel: '자재환입' },
+];
 
 interface OutsourcingLayoutProps {
   vendorId?: string;
@@ -20,14 +42,7 @@ export const OutsourcingLayout: React.FC<OutsourcingLayoutProps> = ({
 }) => {
   const [activeMenu, setActiveMenu] = useState<OutsourcingMenuId>('po-confirmation');
 
-  const menuTitleMap: Record<OutsourcingMenuId, string> = {
-    'po-confirmation': '발주서확인 및 변경요청',
-    'bom-status': 'BOM 입고현황',
-    'delivery-create': '납품서 작성',
-    'delivery-print': '납품서 출력',
-    'material-settlement': '자재정산',
-    'material-return': '자재환입',
-  };
+  const activeItem = MENU_ITEMS.find(m => m.id === activeMenu)!;
 
   const renderContent = () => {
     const props = { vendorId, vendorCode };
@@ -48,33 +63,58 @@ export const OutsourcingLayout: React.FC<OutsourcingLayoutProps> = ({
   };
 
   return (
-    <div className="flex h-screen bg-slate-100">
-      <OutsourcingSidebar activeMenu={activeMenu} onMenuChange={setActiveMenu} />
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onBack}
-              className="text-xs text-slate-500 hover:text-slate-800 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
-            >
-              ← 관리자 화면
-            </button>
-            <div className="h-4 w-px bg-slate-200" />
-            <nav className="text-xs text-slate-400">
-              외주임가공 &gt; <span className="text-slate-700 font-medium">{menuTitleMap[activeMenu]}</span>
-            </nav>
+    <div className="max-w-3xl mx-auto w-full pb-20">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between gap-3 pt-6 px-4 mb-4">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onBack}
+            className="text-slate-500 hover:text-slate-800 text-xs sm:text-sm font-medium px-2 sm:px-3 py-1 border border-slate-200 rounded-lg transition-colors"
+          >
+            ← 돌아가기
+          </button>
+          <div className="hidden sm:block">
+            <h1 className="text-lg font-bold text-[#8B1A1A]">외주임가공</h1>
           </div>
-          {vendorCode && (
-            <span className="text-xs text-slate-500">
-              협력사 코드: <span className="font-mono font-semibold text-slate-700">{vendorCode}</span>
-            </span>
-          )}
-        </header>
+        </div>
+        {vendorCode && (
+          <span className="text-xs text-slate-500">
+            협력사: <span className="font-mono font-semibold text-slate-700">{vendorCode}</span>
+          </span>
+        )}
+      </div>
 
-        <main className="flex-1 overflow-auto p-4">
-          {renderContent()}
-        </main>
+      {/* 메뉴 탭 - 가로 스크롤 */}
+      <div className="flex px-4 mb-4 border-b border-slate-200 overflow-x-auto no-scrollbar">
+        {MENU_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActiveMenu(item.id)}
+            className={`flex-shrink-0 pb-3 px-3 text-xs sm:text-sm font-medium transition-colors relative whitespace-nowrap ${
+              activeMenu === item.id
+                ? 'text-[#8B1A1A]'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span className="sm:hidden">{item.shortLabel}</span>
+            <span className="hidden sm:inline">{item.label}</span>
+            {activeMenu === item.id && (
+              <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#8B1A1A] rounded-t-full" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* 현재 메뉴 제목 (모바일에서 full label 표시) */}
+      <div className="px-4 mb-3 sm:hidden">
+        <p className="text-xs text-slate-400">
+          외주임가공 &gt; <span className="text-slate-700 font-medium">{activeItem.label}</span>
+        </p>
+      </div>
+
+      {/* 콘텐츠 */}
+      <div className="px-4">
+        {renderContent()}
       </div>
     </div>
   );

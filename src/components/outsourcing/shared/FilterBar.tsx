@@ -24,11 +24,11 @@ interface FilterBarProps {
 }
 
 const iconMap: Record<string, string> = {
-  search: '\uD83D\uDD0D',
-  save: '\uD83D\uDCBE',
-  excel: '\uD83D\uDCC4',
-  delete: '\uD83D\uDDD1',
-  print: '\uD83D\uDDA8',
+  search: '🔍',
+  save: '💾',
+  excel: '📄',
+  delete: '🗑',
+  print: '🖨',
 };
 
 const variantClass: Record<string, string> = {
@@ -61,6 +61,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   rightActions = [],
 }) => {
   const [values, setValues] = useState<Record<string, unknown>>(() => getDefaultValues(filters));
+  const [expanded, setExpanded] = useState(false);
 
   const setValue = useCallback((key: string, value: unknown) => {
     setValues(prev => ({ ...prev, [key]: value }));
@@ -78,21 +79,21 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     switch (filter.type) {
       case 'dateRange':
         return (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 w-full">
             <input
               type="date"
               value={String(values[`${filter.key}_from`] ?? '')}
               onChange={e => setValue(`${filter.key}_from`, e.target.value)}
               onKeyDown={handleKeyDown}
-              className="px-2 py-1 border border-slate-300 rounded text-xs w-[130px] focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="flex-1 min-w-0 px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
-            <span className="text-slate-400 text-xs">~</span>
+            <span className="text-slate-400 text-xs flex-shrink-0">~</span>
             <input
               type="date"
               value={String(values[`${filter.key}_to`] ?? '')}
               onChange={e => setValue(`${filter.key}_to`, e.target.value)}
               onKeyDown={handleKeyDown}
-              className="px-2 py-1 border border-slate-300 rounded text-xs w-[130px] focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="flex-1 min-w-0 px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
           </div>
         );
@@ -102,7 +103,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           <select
             value={String(values[filter.key] ?? '')}
             onChange={e => setValue(filter.key, e.target.value)}
-            className="px-2 py-1 border border-slate-300 rounded text-xs min-w-[100px] focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
           >
             {filter.options?.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -112,7 +113,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
       case 'radio':
         return (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {filter.options?.map(opt => (
               <label key={opt.value} className="flex items-center gap-1 text-xs cursor-pointer">
                 <input
@@ -150,49 +151,59 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             onChange={e => setValue(filter.key, e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={filter.placeholder}
-            className="px-2 py-1 border border-slate-300 rounded text-xs min-w-[120px] focus:outline-none focus:ring-1 focus:ring-blue-400"
+            className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
         );
     }
   };
 
+  const visibleFilters = expanded ? filters : filters.slice(0, 3);
+  const hasMore = filters.length > 3;
+
   return (
     <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3">
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1">
-          {filters.map((filter) => (
-            <div key={filter.key} className="flex items-center gap-2">
-              {filter.type !== 'checkbox' && (
-                <label className="text-xs font-medium text-slate-600 whitespace-nowrap min-w-fit">
-                  {filter.label}
-                </label>
-              )}
-              {renderFilter(filter)}
-            </div>
-          ))}
-        </div>
+      <div className="space-y-2">
+        {visibleFilters.map((filter) => (
+          <div key={filter.key} className={filter.type === 'checkbox' ? 'flex items-center' : ''}>
+            {filter.type !== 'checkbox' && filter.label && (
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {filter.label}
+              </label>
+            )}
+            {renderFilter(filter)}
+          </div>
+        ))}
 
-        <div className="flex items-center gap-1.5 ml-auto">
-          {actions.map((action, i) => (
-            <button
-              key={i}
-              onClick={action.onClick}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-1 ${variantClass[action.variant ?? 'primary']}`}
-            >
-              {action.icon && <span className="text-[10px]">{iconMap[action.icon]}</span>}
-              {action.label}
-            </button>
-          ))}
-        </div>
+        {hasMore && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+          >
+            {expanded ? '접기 ▲' : `더보기 (${filters.length - 3}개) ▼`}
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mt-3">
+        {actions.map((action, i) => (
+          <button
+            key={i}
+            onClick={action.onClick}
+            className={`flex-1 min-w-[60px] px-3 py-2 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1 ${variantClass[action.variant ?? 'primary']}`}
+          >
+            {action.icon && <span className="text-[10px]">{iconMap[action.icon]}</span>}
+            {action.label}
+          </button>
+        ))}
       </div>
 
       {rightActions.length > 0 && (
-        <div className="flex justify-end mt-2 gap-1.5">
+        <div className="flex flex-wrap gap-1.5 mt-2">
           {rightActions.map((action, i) => (
             <button
               key={i}
               onClick={action.onClick}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-1 ${variantClass[action.variant ?? 'secondary']}`}
+              className={`flex-1 min-w-[60px] px-3 py-2 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1 ${variantClass[action.variant ?? 'secondary']}`}
             >
               {action.icon && <span className="text-[10px]">{iconMap[action.icon]}</span>}
               {action.label}
