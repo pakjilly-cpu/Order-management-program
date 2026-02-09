@@ -48,6 +48,23 @@ export interface Order {
   completed_at: string | null;
   notes: string | null;
   uploaded_by: string | null;
+  po_number: string | null;
+  item_number: string | null;
+  unit: string;
+  unit_price: number;
+  currency: string;
+  price_unit: number;
+  request_date: string | null;
+  received_quantity: number;
+  remaining_quantity: number;
+  warehouse: string | null;
+  cosmax_comment: string | null;
+  customer_code: string | null;
+  po_status: PurchaseOrderStatus;
+  is_delivery_completed: boolean;
+  packaging_image_url: string | null;
+  product_image_url: string | null;
+  approval_status: ApprovalStatus;
   created_at: string;
   updated_at: string;
 }
@@ -91,37 +108,11 @@ export interface ProductionSchedule {
   updated_at: string;
 }
 
-export interface PurchaseOrder {
-  id: string;
-  vendor_id: string;
-  po_number: string;
-  item_number: string | null;
-  product_code: string | null;
-  product_name: string;
-  po_date: string;
-  po_quantity: number;
-  unit: string;
-  unit_price: number;
-  currency: string;
-  price_unit: number;
-  request_date: string | null;
-  received_quantity: number;
-  remaining_quantity: number;
-  warehouse: string | null;
-  cosmax_comment: string | null;
-  customer_code: string | null;
-  status: PurchaseOrderStatus;
-  is_delivery_completed: boolean;
-  packaging_image_url: string | null;
-  product_image_url: string | null;
-  approval_status: ApprovalStatus;
-  created_at: string;
-  updated_at: string;
-}
+export type PurchaseOrder = Order;
 
 export interface BomItem {
   id: string;
-  purchase_order_id: string | null;
+  order_id: string | null;
   vendor_id: string;
   manager_name: string | null;
   instruction_date: string | null;
@@ -158,7 +149,7 @@ export interface DeliveryNote {
 export interface DeliveryItem {
   id: string;
   delivery_note_id: string;
-  purchase_order_id: string | null;
+  order_id: string | null;
   customer_code: string | null;
   product_code: string | null;
   product_name: string;
@@ -246,9 +237,7 @@ export interface OrderWithSchedule extends Order {
   schedule: ProductionSchedule | null;
 }
 
-export interface PurchaseOrderWithVendor extends PurchaseOrder {
-  vendor: Pick<Vendor, 'name' | 'code'>;
-}
+export type PurchaseOrderWithVendor = OrderWithVendor;
 
 export interface BomItemWithVendor extends BomItem {
   vendor: Pick<Vendor, 'name' | 'code'>;
@@ -293,10 +282,33 @@ export type VendorUpdate = Partial<Omit<Vendor, 'id' | 'created_at'>> & {
   updated_at?: string;
 };
 
-export type OrderInsert = Omit<Order, 'id' | 'created_at' | 'updated_at' | 'is_completed' | 'completed_at'> & {
+export type OrderInsert = Omit<Order,
+  'id' | 'created_at' | 'updated_at' | 'is_completed' | 'completed_at' |
+  'po_number' | 'item_number' | 'unit' | 'unit_price' | 'currency' | 'price_unit' |
+  'request_date' | 'received_quantity' | 'remaining_quantity' | 'warehouse' |
+  'cosmax_comment' | 'customer_code' | 'po_status' | 'is_delivery_completed' |
+  'packaging_image_url' | 'product_image_url' | 'approval_status'
+> & {
   id?: string;
   is_completed?: boolean;
   completed_at?: string | null;
+  po_number?: string | null;
+  item_number?: string | null;
+  unit?: string;
+  unit_price?: number;
+  currency?: string;
+  price_unit?: number;
+  request_date?: string | null;
+  received_quantity?: number;
+  remaining_quantity?: number;
+  warehouse?: string | null;
+  cosmax_comment?: string | null;
+  customer_code?: string | null;
+  po_status?: PurchaseOrderStatus;
+  is_delivery_completed?: boolean;
+  packaging_image_url?: string | null;
+  product_image_url?: string | null;
+  approval_status?: ApprovalStatus;
   created_at?: string;
   updated_at?: string;
 };
@@ -325,15 +337,9 @@ export type ProductionScheduleUpdate = Partial<Omit<ProductionSchedule, 'id' | '
   updated_at?: string;
 };
 
-export type PurchaseOrderInsert = Omit<PurchaseOrder, 'id' | 'created_at' | 'updated_at'> & {
-  id?: string;
-  created_at?: string;
-  updated_at?: string;
-};
+export type PurchaseOrderInsert = OrderInsert;
 
-export type PurchaseOrderUpdate = Partial<Omit<PurchaseOrder, 'id' | 'created_at'>> & {
-  updated_at?: string;
-};
+export type PurchaseOrderUpdate = OrderUpdate;
 
 export type BomItemInsert = Omit<BomItem, 'id' | 'created_at' | 'updated_at'> & {
   id?: string;
@@ -436,12 +442,6 @@ export interface Database {
         Row: ProductionSchedule;
         Insert: ProductionScheduleInsert;
         Update: ProductionScheduleUpdate;
-        Relationships: [];
-      };
-      purchase_orders: {
-        Row: PurchaseOrder;
-        Insert: PurchaseOrderInsert;
-        Update: PurchaseOrderUpdate;
         Relationships: [];
       };
       bom_items: {

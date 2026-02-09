@@ -3,7 +3,7 @@ import { DataGrid, Column } from '../shared/DataGrid';
 import { FilterBar, FilterConfig, ActionButton } from '../shared/FilterBar';
 import { exportToExcel } from '../shared/ExcelDownload';
 import { getPurchaseOrders } from '@/services/outsourcing/purchaseOrderService';
-import type { PurchaseOrderWithVendor, PurchaseOrderStatus, ApprovalStatus } from '@/types/database';
+import type { OrderWithVendor, PurchaseOrderStatus, ApprovalStatus } from '@/types/database';
 
 interface Props {
   vendorId?: string;
@@ -36,9 +36,9 @@ const approvalLabels: Record<ApprovalStatus, string> = {
 };
 
 export const POConfirmation: React.FC<Props> = ({ vendorId, vendorCode }) => {
-  const [data, setData] = useState<PurchaseOrderWithVendor[]>([]);
+  const [data, setData] = useState<OrderWithVendor[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [sortKey, setSortKey] = useState('po_date');
+  const [sortKey, setSortKey] = useState('order_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -51,7 +51,7 @@ export const POConfirmation: React.FC<Props> = ({ vendorId, vendorCode }) => {
         dateTo: filters.po_date_to as string,
         status: (filters.status as string) === 'ALL' ? undefined : filters.status as string,
         poNumber: filters.po_number as string,
-        excludeCompleted: filters.exclude_completed as boolean,
+        excludeCompleted: filters.exclude_completed === 'true' || filters.exclude_completed === true,
       });
       setData(result ?? []);
     } catch {
@@ -75,7 +75,7 @@ export const POConfirmation: React.FC<Props> = ({ vendorId, vendorCode }) => {
   }, [data]);
 
   const filters: FilterConfig[] = [
-    { key: 'po_date', label: 'PO 생성일', type: 'dateRange', defaultValue: { from: firstOfMonth, to: today } },
+    { key: 'po_date', label: '발주일', type: 'dateRange', defaultValue: { from: firstOfMonth, to: today } },
     { key: 'status', label: '상태', type: 'select', options: [
       { label: 'ALL', value: 'ALL' },
       { label: '대기', value: 'pending' },
@@ -84,54 +84,31 @@ export const POConfirmation: React.FC<Props> = ({ vendorId, vendorCode }) => {
       { label: '완료', value: 'completed' },
     ], defaultValue: 'ALL' },
     { key: 'exclude_completed', label: '', type: 'checkbox', placeholder: '납품완료제외', defaultValue: true },
-    { key: 'request_date', label: '입고 요청일', type: 'dateRange' },
-    { key: 'search_type', label: '품목검색', type: 'radio', options: [
-      { label: '코드', value: 'code' },
-      { label: '명칭', value: 'name' },
-    ], defaultValue: 'name' },
-    { key: 'product_search', label: '', type: 'text', placeholder: '검색어 입력' },
-    { key: 'vendor_code', label: '협력사 코드', type: 'text', defaultValue: vendorCode ?? '' },
     { key: 'po_number', label: 'PO번호 검색', type: 'text' },
+    { key: 'vendor_code', label: '협력사 코드', type: 'text', defaultValue: vendorCode ?? '' },
   ];
 
   const actions: ActionButton[] = [
     { label: '조회', icon: 'search', onClick: () => handleSearch({}), variant: 'primary' },
     { label: 'EXCEL', icon: 'excel', onClick: handleExcel, variant: 'excel' },
-    { label: '저장', icon: 'save', onClick: () => {}, variant: 'secondary' },
   ];
 
-  const rightActions: ActionButton[] = [
-    { label: '포장기준서 출력', icon: 'print', onClick: () => {}, variant: 'secondary' },
-    { label: '발주서 출력', icon: 'print', onClick: () => {}, variant: 'secondary' },
-  ];
-
-  const columns: Column<PurchaseOrderWithVendor>[] = [
-    { key: 'status', label: '상태', width: '60px', render: (row) => (
-      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[row.status]}`}>
-        {statusLabels[row.status]}
+  const columns: Column<OrderWithVendor>[] = [
+    { key: 'po_status', label: '상태', width: '60px', render: (row) => (
+      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColors[row.po_status]}`}>
+        {statusLabels[row.po_status]}
       </span>
     )},
     { key: 'po_number', label: 'PO번호', width: '100px', sortable: true },
-    { key: 'item_number', label: '품번', width: '60px' },
     { key: 'product_code', label: '품목코드', width: '100px', sortable: true },
     { key: 'product_name', label: '품목명', width: '200px', sortable: true },
-    { key: 'po_date', label: 'PO 생성일', width: '100px', sortable: true },
-    { key: 'po_quantity', label: 'PO수량', width: '80px', align: 'right', sortable: true, render: (row) => row.po_quantity.toLocaleString() },
+    { key: 'order_date', label: '발주일', width: '100px', sortable: true },
+    { key: 'quantity', label: '수량', width: '80px', align: 'right', sortable: true, render: (row) => row.quantity.toLocaleString() },
     { key: 'unit', label: '단위', width: '50px', align: 'center' },
-    { key: 'unit_price', label: '단가', width: '80px', align: 'right', render: (row) => row.unit_price.toLocaleString() },
-    { key: 'currency', label: '통화단위', width: '60px', align: 'center' },
-    { key: 'price_unit', label: '가격단위', width: '60px', align: 'center' },
-    { key: 'request_date', label: '입고요청일', width: '100px', sortable: true },
+    { key: 'delivery_date', label: '납기요청일', width: '100px', sortable: true },
     { key: 'received_quantity', label: '기입고수량', width: '80px', align: 'right', render: (row) => row.received_quantity.toLocaleString() },
-    { key: 'remaining_quantity', label: '이입고수량', width: '80px', align: 'right', render: (row) => row.remaining_quantity.toLocaleString() },
+    { key: 'remaining_quantity', label: '미입고수량', width: '80px', align: 'right', render: (row) => row.remaining_quantity.toLocaleString() },
     { key: 'warehouse', label: '납품창고', width: '80px' },
-    { key: 'packaging_image_url', label: '포장이미지', width: '70px', align: 'center', render: (row) => row.packaging_image_url ? (
-      <span className="text-blue-600 cursor-pointer underline text-[10px]">보기</span>
-    ) : '' },
-    { key: 'product_image_url', label: '기존 제품이미지', width: '80px', align: 'center', render: (row) => row.product_image_url ? (
-      <span className="text-blue-600 cursor-pointer underline text-[10px]">보기</span>
-    ) : '' },
-    { key: 'customer_code', label: '고객사목록코드', width: '100px' },
     { key: 'approval_status', label: '승인', width: '60px', align: 'center', render: (row) => (
       <span className={`text-[10px] font-medium ${row.approval_status === 'approved' ? 'text-emerald-600' : row.approval_status === 'rejected' ? 'text-red-600' : 'text-slate-400'}`}>
         {approvalLabels[row.approval_status]}
@@ -141,7 +118,7 @@ export const POConfirmation: React.FC<Props> = ({ vendorId, vendorCode }) => {
 
   return (
     <div>
-      <FilterBar filters={filters} onSearch={handleSearch} actions={actions} rightActions={rightActions} />
+      <FilterBar filters={filters} onSearch={handleSearch} actions={actions} />
       <DataGrid
         columns={columns}
         data={data}

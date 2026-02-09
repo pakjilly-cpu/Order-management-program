@@ -1,9 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import type {
-  PurchaseOrder,
-  PurchaseOrderWithVendor,
-  PurchaseOrderInsert,
-  PurchaseOrderUpdate,
+  Order,
+  OrderWithVendor,
+  OrderUpdate,
   ApprovalStatus,
 } from '@/types/database';
 
@@ -17,27 +16,27 @@ export const getPurchaseOrders = async (
     poNumber?: string;
     excludeCompleted?: boolean;
   }
-): Promise<{ data: PurchaseOrderWithVendor[] | null; error: Error | null }> => {
+): Promise<{ data: OrderWithVendor[] | null; error: Error | null }> => {
   try {
     let query = supabase
-      .from('purchase_orders')
+      .from('orders')
       .select(`
         *,
         vendor:vendors(name, code)
       `)
-      .order('po_date', { ascending: false });
+      .order('order_date', { ascending: false });
 
     if (filters?.vendorId) {
       query = query.eq('vendor_id', filters.vendorId);
     }
     if (filters?.dateFrom) {
-      query = query.gte('po_date', filters.dateFrom);
+      query = query.gte('order_date', filters.dateFrom);
     }
     if (filters?.dateTo) {
-      query = query.lte('po_date', filters.dateTo);
+      query = query.lte('order_date', filters.dateTo);
     }
     if (filters?.status) {
-      query = query.eq('status', filters.status);
+      query = query.eq('po_status', filters.status);
     }
     if (filters?.productSearch) {
       query = query.or(`product_name.ilike.%${filters.productSearch}%,product_code.ilike.%${filters.productSearch}%`);
@@ -52,45 +51,27 @@ export const getPurchaseOrders = async (
     const { data, error } = await query;
 
     if (error) throw error;
-    return { data: data as PurchaseOrderWithVendor[], error: null };
+    return { data: data as OrderWithVendor[], error: null };
   } catch (error) {
     console.error('Error fetching purchase orders:', error);
     return { data: null, error: error as Error };
   }
 };
 
-export const createPurchaseOrder = async (
-  orderData: PurchaseOrderInsert
-): Promise<{ data: PurchaseOrder | null; error: Error | null }> => {
-  try {
-    const { data, error } = await supabase
-      .from('purchase_orders')
-      .insert(orderData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return { data: data as PurchaseOrder, error: null };
-  } catch (error) {
-    console.error('Error creating purchase order:', error);
-    return { data: null, error: error as Error };
-  }
-};
-
 export const updatePurchaseOrder = async (
   id: string,
-  updateData: PurchaseOrderUpdate
-): Promise<{ data: PurchaseOrder | null; error: Error | null }> => {
+  updateData: OrderUpdate
+): Promise<{ data: Order | null; error: Error | null }> => {
   try {
     const { data, error } = await supabase
-      .from('purchase_orders')
+      .from('orders')
       .update({ ...updateData, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
-    return { data: data as PurchaseOrder, error: null };
+    return { data: data as Order, error: null };
   } catch (error) {
     console.error('Error updating purchase order:', error);
     return { data: null, error: error as Error };
@@ -100,36 +81,19 @@ export const updatePurchaseOrder = async (
 export const updateApprovalStatus = async (
   id: string,
   status: ApprovalStatus
-): Promise<{ data: PurchaseOrder | null; error: Error | null }> => {
+): Promise<{ data: Order | null; error: Error | null }> => {
   try {
     const { data, error } = await supabase
-      .from('purchase_orders')
+      .from('orders')
       .update({ approval_status: status, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
-    return { data: data as PurchaseOrder, error: null };
+    return { data: data as Order, error: null };
   } catch (error) {
     console.error('Error updating approval status:', error);
-    return { data: null, error: error as Error };
-  }
-};
-
-export const deletePurchaseOrder = async (
-  id: string
-): Promise<{ data: null; error: Error | null }> => {
-  try {
-    const { error } = await supabase
-      .from('purchase_orders')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
-    return { data: null, error: null };
-  } catch (error) {
-    console.error('Error deleting purchase order:', error);
     return { data: null, error: error as Error };
   }
 };
