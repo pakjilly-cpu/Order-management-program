@@ -36,7 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_approval_status ON orders(approval_status)
 CREATE TABLE IF NOT EXISTS bom_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
-  vendor_id UUID NOT NULL REFERENCES vendors(id) ON DELETE CASCADE,
+  vendor_id UUID REFERENCES vendors(id) ON DELETE SET NULL,
   manager_name TEXT,
   instruction_date DATE,
   supplier_code TEXT,

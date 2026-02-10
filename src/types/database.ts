@@ -113,7 +113,7 @@ export type PurchaseOrder = Order;
 export interface BomItem {
   id: string;
   order_id: string | null;
-  vendor_id: string;
+  vendor_id: string | null;
   manager_name: string | null;
   instruction_date: string | null;
   supplier_code: string | null;

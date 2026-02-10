@@ -32,12 +32,14 @@ const MENU_ITEMS: MenuItem[] = [
 interface OutsourcingLayoutProps {
   vendorId?: string;
   vendorCode?: string;
+  isAdmin?: boolean;
   onBack: () => void;
 }
 
 export const OutsourcingLayout: React.FC<OutsourcingLayoutProps> = ({
   vendorId,
   vendorCode,
+  isAdmin = false,
   onBack,
 }) => {
   const [activeMenu, setActiveMenu] = useState<OutsourcingMenuId>('po-confirmation');
@@ -45,10 +47,10 @@ export const OutsourcingLayout: React.FC<OutsourcingLayoutProps> = ({
   const activeItem = MENU_ITEMS.find(m => m.id === activeMenu)!;
 
   const renderContent = () => {
-    const props = { vendorId, vendorCode };
+    const props = { vendorId, vendorCode, isAdmin };
     switch (activeMenu) {
       case 'po-confirmation':
-        return <POConfirmation {...props} />;
+        return <POConfirmation vendorId={vendorId} vendorCode={vendorCode} />;
       case 'bom-status':
         return <BOMStatus {...props} />;
       case 'delivery-create':

@@ -210,6 +210,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   if (activeTab === 'outsourcing') {
     return (
       <OutsourcingLayout
+        isAdmin={true}
         onBack={() => setActiveTab('input')}
       />
     );

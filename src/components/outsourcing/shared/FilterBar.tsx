@@ -188,7 +188,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         {actions.map((action, i) => (
           <button
             key={i}
-            onClick={action.onClick}
+            onClick={() => {
+              if (action.icon === 'search') {
+                onSearch(values);
+              } else {
+                action.onClick();
+              }
+            }}
             className={`flex-1 min-w-[60px] px-3 py-2 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1 ${variantClass[action.variant ?? 'primary']}`}
           >
             {action.icon && <span className="text-[10px]">{iconMap[action.icon]}</span>}
